@@ -15,7 +15,7 @@ export default async function handler(req, res) {
   let body = req.body;
   if (typeof body === "string") { try { body = JSON.parse(body); } catch { body = {}; } }
   const image = body && body.image; // data URL or base64, JPEG
-  if (!image || typeof image !== "string") return res.status(400).json({ error: "no image" });
+  if (!image || typeof image !== "string") return res.status(400).json({ error: "no image", version: "e2ddec4-v3" });
   const b64 = image.replace(/^data:image\/\w+;base64,/, "");
   const prompt = `Look at this photo of a drink. Return ONLY JSON, no other text:
 {"drink":"tea|coffee|water|juice|soda|milk|soup|other",
