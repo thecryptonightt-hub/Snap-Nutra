@@ -25,6 +25,26 @@ export default async function handler(req, res) {
  "ml":175}
 Rules: fill is the fraction of the container that is full (0.25, 0.5, 0.75, 1.0, or a close fraction). capacity_ml is the container's full capacity in mL, estimated from its type and size in the photo. ml = round(capacity_ml * fill). Do not guess a brand unless it is clearly visible. If you cannot see a drink, return {"error":"no drink visible"}.`;
   const providerErrors = {};
+  // Cloudflare Workers AI free vision, if configured: 10,000 neurons/day
+  // free, no card, token shows in full, model Llama 3.2 11B Vision.
+  // This is tried first now because Hugging Face Inference Providers
+  // returned 402 no remaining credits for its 72B vision model.
+  const cfToken = process.env.CF_API_TOKEN;
+  const cfAccount = process.env.CF_ACCOUNT_ID;
+  if (cfToken && cfAccount) {
+    try {
+      const cr = await fetch("https://api.cloudflare.com/client/v4/accounts/" + encodeURIComponent(cfAccount) + "/ai/v1/chat/completions", { method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + cfToken },
+        body: JSON.stringify({ model: "@cf/meta/llama-3.2-11b-vision-instruct", temperature: 0, messages: [{ role: "user", content: [{ type: "text", text: prompt }, { type: "image_url", image_url: { url: image.startsWith("data:") ? image : "data:image/jpeg;base64," + image } }] }] }) });
+      const ctxt = await cr.text();
+      if (cr.ok) {
+        const cj = JSON.parse(ctxt);
+        const ctext = (cj.choices && cj.choices[0] && cj.choices[0].message && cj.choices[0].message.content) || "";
+        const parsed = JSON.parse(String(ctext).replace(/```json|```/g, "").trim());
+        if (!parsed.error) return res.status(200).json({ drink: parsed.drink || "Drink", container: parsed.container || "glass", fill: parsed.fill, capacity_ml: parsed.capacity_ml, ml: Math.round(parsed.ml || 0) });
+      } else { providerErrors['cloudflare'] = cr.status + ' ' + ctxt.slice(0,200); }
+    } catch (e) { providerErrors['cloudflare'] = String(e).slice(0,200); }
+  }
   // Hugging Face free vision, if configured: HF shows its token in full
   // on the creation page, so the browser can read it and type it into
   // Vercel. Free tier, no card.
