@@ -165,7 +165,6 @@
       </div>
       <div class="cta-row">
         <button type="button" class="btn btn-buy buy-btn">Buy Snap Nutra — $5.99</button>
-        <a class="btn btn-ghost" href="#demo">Try the live demo ↓</a>
       </div>
       <div class="trust">
         <span>Photo-first — it is the first thing you see</span>
@@ -195,48 +194,6 @@
     </div>
   </section>
 
-  <section id="demo" aria-labelledby="demo-h">
-    <span class="kicker">Try it right here</span>
-    <h2 id="demo-h">This is exactly how Snap Nutra works</h2>
-    <p class="sub">Two numbers in — your dry weight and your weight limit. Then every drink moves the line. Play with it:</p>
-    <div class="demo">
-      <div class="demo-grid">
-        <div class="field">
-          <label for="dryInput">1 · My dry weight (kg)</label>
-          <input id="dryInput" type="number" inputmode="decimal" step="0.1" min="20" max="300" value="50.5" />
-          <p class="hint">Your weight right after dialysis. It never changes on its own — only when you change it.</p>
-        </div>
-        <div class="field">
-          <label for="limitInput">2 · My weight limit (kg)</label>
-          <input id="limitInput" type="number" inputmode="decimal" step="0.1" min="20" max="300" value="53" />
-          <p class="hint">The highest weight you and your care team want you to stay at. You enter it — the app never guesses it.</p>
-        </div>
-      </div>
-      <p class="err" id="demoErr" role="alert">Your weight limit must be higher than your dry weight. Check the two numbers and try again.</p>
-      <p class="allowance" id="allowanceLine">You can gain: <strong>2.5 kg = 2,500 mL</strong> before you reach your limit.</p>
-      <p style="font-weight:900;font-size:19px;margin-top:18px">3 · Add what you drank</p>
-      <div class="add-row">
-        <button type="button" class="chip-btn" data-add="240">+ Glass of water · 240 mL</button>
-        <button type="button" class="chip-btn" data-add="240">+ Coffee · 240 mL</button>
-        <button type="button" class="chip-btn" data-add="651">+ Tall iced tea · 651 mL</button>
-        <button type="button" class="chip-btn" data-add="300">+ Bowl of soup · 300 mL</button>
-        <button type="button" class="chip-btn" id="resetBtn">Start over</button>
-      </div>
-      <label for="drankRange" style="font-weight:800;color:var(--muted);font-size:17px">…or slide to any amount you drank today</label>
-      <input type="range" id="drankRange" min="0" max="3000" step="10" value="651" aria-label="Millilitres drank today" />
-      <div class="demo-nums">
-        <div class="num"><div class="v" id="numDrank">651 mL</div><div class="l">Drank today</div></div>
-        <div class="num"><div class="v" id="numCombined">51.15 kg</div><div class="l">Dry weight + fluid today</div></div>
-        <div class="num"><div class="v" id="numLeft">1,849 mL</div><div class="l">Left before your limit</div></div>
-      </div>
-      <div aria-hidden="true">
-        <div class="track"><div class="fill" id="trackFill"></div></div>
-        <div class="track-labels"><span>0% · Dry weight</span><span id="pctLabel">26% full</span><span>100% · Your limit</span></div>
-      </div>
-      <p class="status ok" id="statusBox" role="status" aria-live="polite">Plenty left — you have 1,849 mL to go.</p>
-      <p style="color:var(--muted);font-size:16px;margin-top:14px">The line starts <strong style="color:var(--green)">green</strong>, turns <strong style="color:var(--yellow)">yellow</strong> as you get closer, and goes <strong style="color:var(--red)">red</strong> at your limit. At 70% it says “Getting close,” at 90% “Very close,” and at 100% it tells you plainly that you have reached it — and by how much, if you go over. The combined weight is a planning estimate to help you track, not your actual body weight.</p>
-    </div>
-  </section>
 
   <section aria-labelledby="how-h">
     <span class="kicker">How it works</span>
@@ -484,58 +441,6 @@
   tabI.addEventListener("click", function(){ showPhone("iphone"); });
   tabA.addEventListener("click", function(){ showPhone("android"); });
 
-  /* ===== Live demo — same math as the app ===== */
-  var dryInput=document.getElementById("dryInput"), limitInput=document.getElementById("limitInput");
-  var range=document.getElementById("drankRange"), err=document.getElementById("demoErr");
-  var allowanceLine=document.getElementById("allowanceLine");
-  var numDrank=document.getElementById("numDrank"), numCombined=document.getElementById("numCombined"), numLeft=document.getElementById("numLeft");
-  var fill=document.getElementById("trackFill"), pctLabel=document.getElementById("pctLabel"), statusBox=document.getElementById("statusBox");
-  function fmt(n){ return n.toLocaleString("en-US"); }
-  function fmtKg(n){ return (Math.round(n*100)/100).toFixed(2); }
-  function update(){
-    var dry=parseFloat(dryInput.value), limit=parseFloat(limitInput.value), drank=parseInt(range.value,10)||0;
-    var valid = isFinite(dry) && isFinite(limit) && limit>dry;
-    err.classList.toggle("show", !valid);
-    if(!valid){
-      allowanceLine.innerHTML="Enter a weight limit higher than your dry weight to see your allowance.";
-      fill.style.width="0%"; pctLabel.textContent="—";
-      numDrank.textContent=fmt(drank)+" mL"; numCombined.textContent="—"; numLeft.textContent="—";
-      statusBox.className="status over"; statusBox.textContent="Check your two numbers above — the limit must be higher than dry weight.";
-      return;
-    }
-    var allowanceMl=Math.round((limit-dry)*1000);
-    var allowanceKg=Math.round((limit-dry)*10)/10;
-    var pct=allowanceMl>0 ? (drank/allowanceMl)*100 : 0;
-    var pctShown=Math.round(pct);
-    var combined=dry + drank/1000;
-    var left=allowanceMl-drank;
-    allowanceLine.innerHTML="You can gain: <strong>"+allowanceKg+" kg = "+fmt(allowanceMl)+" mL</strong> before you reach your limit.";
-    numDrank.textContent=fmt(drank)+" mL";
-    numCombined.textContent=fmtKg(combined)+" kg";
-    numLeft.textContent= left>=0 ? fmt(left)+" mL" : fmt(-left)+" mL over";
-    fill.style.width=Math.min(100,pct)+"%";
-    pctLabel.textContent=pctShown+"% full";
-    var cls,msg,color;
-    if(pct>=100){ cls="status over"; color="var(--red)"; msg = left<0 ? ("You have passed your limit — "+fmt(-left)+" mL over. Time to stop and check with your care team if you are unsure.") : "You are right at your limit — 0 mL left."; }
-    else if(pct>=90){ cls="status close"; color="var(--orange)"; msg="Very close to your limit — only "+fmt(left)+" mL left."; }
-    else if(pct>=70){ cls="status warn"; color="var(--yellow)"; msg="Getting close to your limit — "+fmt(left)+" mL left."; }
-    else { cls="status ok"; color="var(--green)"; msg="Plenty left — you have "+fmt(left)+" mL to go."; }
-    fill.style.background=color;
-    statusBox.className=cls; statusBox.textContent=msg;
-  }
-  dryInput.addEventListener("input", update);
-  limitInput.addEventListener("input", update);
-  range.addEventListener("input", update);
-  var addBtns=document.querySelectorAll("[data-add]");
-  for (var j=0;j<addBtns.length;j++){
-    addBtns[j].addEventListener("click", function(){
-      var add=parseInt(this.getAttribute("data-add"),10)||0;
-      range.value=Math.min(3000,(parseInt(range.value,10)||0)+add);
-      update();
-    });
-  }
-  document.getElementById("resetBtn").addEventListener("click", function(){ range.value=0; update(); });
-  update();
 })();
 </script>
 </body>
