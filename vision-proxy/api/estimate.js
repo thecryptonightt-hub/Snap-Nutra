@@ -24,6 +24,26 @@ export default async function handler(req, res) {
  "capacity_ml":350,
  "ml":175}
 Rules: fill is the fraction of the container that is full (0.25, 0.5, 0.75, 1.0, or a close fraction). capacity_ml is the container's full capacity in mL, estimated from its type and size in the photo. ml = round(capacity_ml * fill). Do not guess a brand unless it is clearly visible. If you cannot see a drink, return {"error":"no drink visible"}.`;
+  // OpenRouter free vision first, if configured: Gemini's current model
+  // returns 402 prepayment credits depleted on the free AI Studio key,
+  // so Gemini is not actually free for new users here.
+  const orKey = process.env.OPENROUTER_API_KEY;
+  if (orKey) {
+    for (const orModel of ["google/gemma-3-27b-it:free", "meta-llama/llama-3.2-11b-vision-instruct:free", "qwen/qwen2.5-vl-72b-instruct:free"]) {
+      try {
+        const or = await fetch("https://openrouter.ai/api/v1/chat/completions", { method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": "Bearer " + orKey, "HTTP-Referer": "https://thecryptonightt-hub.github.io/Snap-Nutra/", "X-Title": "Snap Nutra" },
+          body: JSON.stringify({ model: orModel, temperature: 0, messages: [{ role: "user", content: [{ type: "text", text: prompt }, { type: "image_url", image_url: { url: image.startsWith("data:") ? image : "data:image/jpeg;base64," + image } }] }] }) });
+        const otxt = await or.text();
+        if (or.ok) {
+          const oj = JSON.parse(otxt);
+          const otext = (oj.choices && oj.choices[0] && oj.choices[0].message && oj.choices[0].message.content) || "";
+          const parsed = JSON.parse(String(otext).replace(/```json|```/g, "").trim());
+          if (!parsed.error) return res.status(200).json({ drink: parsed.drink || "Drink", container: parsed.container || "glass", fill: parsed.fill, capacity_ml: parsed.capacity_ml, ml: Math.round(parsed.ml || 0) });
+        }
+      } catch {}
+    }
+  }
   // Try 2.5-flash first, fall back to older flash models if a model is
   // not available on this free key. Return the upstream error text
   // (no key is ever in it) so a failure can actually be diagnosed.
