@@ -32,17 +32,28 @@ Rules: fill is the fraction of the container that is full (0.25, 0.5, 0.75, 1.0,
   const cfToken = process.env.CF_API_TOKEN;
   const cfAccount = process.env.CF_ACCOUNT_ID;
   if (cfToken && cfAccount) {
+    const cfUrl = "https://api.cloudflare.com/client/v4/accounts/" + encodeURIComponent(cfAccount) + "/ai/v1/chat/completions";
+    const cfBody = JSON.stringify({ model: "@cf/meta/llama-3.2-11b-vision-instruct", temperature: 0, messages: [{ role: "user", content: [{ type: "text", text: prompt }, { type: "image_url", image_url: { url: image.startsWith("data:") ? image : "data:image/jpeg;base64," + image } }] }] });
+    async function cfCall() {
+      const cr = await fetch(cfUrl, { method: "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + cfToken }, body: cfBody });
+      return { status: cr.status, text: await cr.text() };
+    }
     try {
-      const cr = await fetch("https://api.cloudflare.com/client/v4/accounts/" + encodeURIComponent(cfAccount) + "/ai/v1/chat/completions", { method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + cfToken },
-        body: JSON.stringify({ model: "@cf/meta/llama-3.2-11b-vision-instruct", temperature: 0, messages: [{ role: "user", content: [{ type: "text", text: prompt }, { type: "image_url", image_url: { url: image.startsWith("data:") ? image : "data:image/jpeg;base64," + image } }] }] }) });
-      const ctxt = await cr.text();
-      if (cr.ok) {
-        const cj = JSON.parse(ctxt);
+      let cf = await cfCall();
+      // One-time Meta license gate: if the first Llama call is refused
+      // for license reasons, run the agree call once, then retry once.
+      if (!cf.text || /licen/i.test(cf.text)) {
+        try {
+          await fetch("https://api.cloudflare.com/client/v4/accounts/" + encodeURIComponent(cfAccount) + "/ai/run/@cf/meta/llama-3.2-11b-vision-instruct", { method: "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + cfToken }, body: JSON.stringify({ prompt: "agree" }) });
+          cf = await cfCall();
+        } catch {}
+      }
+      if (cf.status >= 200 && cf.status < 300) {
+        const cj = JSON.parse(cf.text);
         const ctext = (cj.choices && cj.choices[0] && cj.choices[0].message && cj.choices[0].message.content) || "";
         const parsed = JSON.parse(String(ctext).replace(/```json|```/g, "").trim());
         if (!parsed.error) return res.status(200).json({ drink: parsed.drink || "Drink", container: parsed.container || "glass", fill: parsed.fill, capacity_ml: parsed.capacity_ml, ml: Math.round(parsed.ml || 0) });
-      } else { providerErrors['cloudflare'] = cr.status + ' ' + ctxt.slice(0,200); }
+      } else { providerErrors['cloudflare'] = cf.status + ' ' + cf.text.slice(0,200); }
     } catch (e) { providerErrors['cloudflare'] = String(e).slice(0,200); }
   }
   // Hugging Face free vision, if configured: HF shows its token in full
