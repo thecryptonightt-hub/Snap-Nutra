@@ -24,7 +24,27 @@ export default async function handler(req, res) {
  "capacity_ml":350,
  "ml":175}
 Rules: fill is the fraction of the container that is full (0.25, 0.5, 0.75, 1.0, or a close fraction). capacity_ml is the container's full capacity in mL, estimated from its type and size in the photo. ml = round(capacity_ml * fill). Do not guess a brand unless it is clearly visible. If you cannot see a drink, return {"error":"no drink visible"}.`;
-  // OpenRouter free vision first, if configured: Gemini's current model
+  // Groq free vision first, if configured: Groq shows its key in full
+  // on the creation page (unlike OpenRouter's masked key), so the
+  // browser can read it and type it into Vercel. Free tier, no card.
+  const groqKey = process.env.GROQ_API_KEY;
+  if (groqKey) {
+    for (const groqModel of ["meta-llama/llama-4-scout-17b-16e-instruct", "llama-3.2-11b-vision-instruct"]) {
+      try {
+        const gr = await fetch("https://api.groq.com/openai/v1/chat/completions", { method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": "Bearer " + groqKey },
+          body: JSON.stringify({ model: groqModel, temperature: 0, messages: [{ role: "user", content: [{ type: "text", text: prompt }, { type: "image_url", image_url: { url: image.startsWith("data:") ? image : "data:image/jpeg;base64," + image } }] }] }) });
+        const gtxt = await gr.text();
+        if (gr.ok) {
+          const gj = JSON.parse(gtxt);
+          const gtext = (gj.choices && gj.choices[0] && gj.choices[0].message && gj.choices[0].message.content) || "";
+          const parsed = JSON.parse(String(gtext).replace(/```json|```/g, "").trim());
+          if (!parsed.error) return res.status(200).json({ drink: parsed.drink || "Drink", container: parsed.container || "glass", fill: parsed.fill, capacity_ml: parsed.capacity_ml, ml: Math.round(parsed.ml || 0) });
+        }
+      } catch {}
+    }
+  }
+  // OpenRouter free vision next, if configured: Gemini's current model
   // returns 402 prepayment credits depleted on the free AI Studio key,
   // so Gemini is not actually free for new users here.
   const orKey = process.env.OPENROUTER_API_KEY;
