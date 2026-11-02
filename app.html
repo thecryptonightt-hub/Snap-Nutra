@@ -1,132 +1,826 @@
-<!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Snap Nutra — Tracker</title>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="dark" />
+<link rel="icon" href="data:," />
+<title>Snapnutra</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800;900&display=swap" rel="stylesheet" />
 <style>
-*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#0b1020;color:#f1f5ff;padding:16px}
-main{max-width:560px;margin:0 auto}h1{font-size:32px;margin:8px 0 4px}h2{font-size:22px;margin:20px 0 8px}
-p{font-size:18px;line-height:1.4}.card{background:#16213f;border:2px solid #7c3aed;border-radius:20px;padding:16px;margin:14px 0}
-button{font-size:20px;font-weight:700;padding:14px 16px;border-radius:14px;border:0;cursor:pointer;width:100%;margin:6px 0;background:#ec4899;color:#fff}
-button.secondary{background:#334155}button.small{width:auto;padding:10px 14px;font-size:17px}
-input,select{font-size:20px;padding:12px;border-radius:12px;border:2px solid #475569;width:100%;margin:6px 0;background:#0f172a;color:#fff}
-label{font-size:18px;font-weight:700}.big{font-size:36px;font-weight:900}
-.bar{height:28px;background:#1e293b;border-radius:999px;overflow:hidden}.fill{height:100%;width:0%;background:#22c55e;transition:width .3s}
-.warn{font-size:20px;font-weight:800;padding:10px;border-radius:12px;text-align:center}
-.drinkgrid{display:none;grid-template-columns:1fr 1fr;gap:8px}.drinkgrid.open{display:grid}
-.row{display:flex;gap:8px;align-items:center;justify-content:space-between;background:#0f172a;border-radius:12px;padding:10px;margin:8px 0}
-.row span{font-size:18px}img{max-width:100%;border-radius:14px;margin-top:10px}
-.note{font-size:16px;color:#cbd5e1}
-</style></head>
-<body><main>
-<h1>🥤 Snap Nutra</h1>
-<p>Photograph a drink, or add it by hand. Know how much you can still drink today.</p>
-
-<section class="card" id="photoCard">
-<h2>📸 Add with a photo</h2>
-<p>Take a photo first — it's the first thing to do.</p>
-<label style="display:block;text-align:center;background:#7c3aed;color:#fff;padding:16px;border-radius:14px;font-size:20px;font-weight:700;cursor:pointer">📷 Take a photo<input type="file" id="cam" accept="image/*" capture="environment" style="display:none"></label>
-<label style="display:block;text-align:center;background:#334155;color:#fff;padding:16px;border-radius:14px;font-size:20px;font-weight:700;cursor:pointer;margin-top:10px">🖼️ Choose a photo from files<input type="file" id="file" accept="image/*" style="display:none"></label>
-<img id="preview" style="display:none" alt="Your drink photo">
-<div id="photoForm" style="display:none">
-<label>What is it? <input id="photoName" placeholder="e.g. Green tea"></label>
-<label>How much? <select id="photoAmt"><option value="240">8 fl oz · 240 mL</option><option value="355">12 fl oz · 355 mL</option><option value="500">16.9 fl oz · 500 mL</option><option value="651">22 fl oz · 651 mL</option><option value="1000">33.8 fl oz · 1000 mL</option></select></label>
-<label>Or type mL <input id="photoMl" type="number" placeholder="e.g. 651"></label>
-<button id="addPhotoBtn">Add this drink</button>
-<p class="note">Photo note: on this public GitHub page, automatic photo guessing is not yet connected — no key is hidden here. Pick the amount after your photo, and the app calculates everything else. The full automatic version needs the small backend step that is still to come.</p>
-</div>
-</section>
-
-<section class="card">
-<h2>⚖️ My weights</h2>
-<label>My dry weight (kg) <input id="dry" type="number" step="0.1" placeholder="e.g. 50.5"></label>
-<label>My weight limit (kg) <input id="limit" type="number" step="0.1" placeholder="e.g. 53"></label>
-<button id="saveWeights">Save my weights</button>
-<p id="weightErr" style="color:#f87171;font-weight:700"></p>
-<p id="allowLine"></p>
-</section>
-
-<section class="card">
-<h2>📊 Today</h2>
-<p class="big" id="todayTotal">0 mL · 0 fl oz</p>
-<p id="combinedLine"></p>
-<div class="bar"><div class="fill" id="fill"></div></div>
-<p id="pctLine" style="text-align:center;font-weight:800"></p>
-<div class="warn" id="warn" style="background:#1e293b">Enter your dry weight and weight limit to see your line.</div>
-<p id="leftLine"></p>
-</section>
-
-<section class="card">
-<h2>✋ Add by hand</h2>
-<button id="handBtn">✋ Add by hand ▼<br><span style="font-size:16px;font-weight:400">Tap to pick what you had</span></button>
-<div class="drinkgrid" id="drinkGrid"></div>
-<p id="picked" style="font-weight:700"></p>
-<label>Amount <select id="handAmt"><option value="240">8 fl oz · 240 mL</option><option value="355">12 fl oz · 355 mL</option><option value="500">16.9 fl oz · 500 mL</option><option value="651">22 fl oz · 651 mL</option></select></label>
-<button id="addHandBtn" class="secondary">Add</button>
-</section>
-
-<section class="card">
-<h2>📋 Today's list</h2>
-<div id="list"></div>
-<p id="emptyMsg">Nothing yet today. Add a drink above.</p>
-</section>
-
-<p class="note">Your data is saved only on this device, in this browser. Combined weight is a planning estimate only — not your actual body weight. Dry weight never changes when you add a drink.</p>
-<p class="note">Back to the sales site: <a href="./" style="color:#f472b6">Snap Nutra — $5.99</a></p>
-</main>
-<script>
-const $=id=>document.getElementById(id);
-const DRINKS=["Water","Coffee","Tea","Soda","Juice","Milk","Sports/nutrition drink","Broth","Soup","Ice cream/frozen treat","Ice cubes","Other"];
-let picked=null;
-function todayKey(){return new Date().toLocaleDateString('en-CA')}
-function load(){try{return JSON.parse(localStorage.getItem('snapnutra')||'{"entries":[],"dry":"","limit":""}')}catch(e){return {entries:[],dry:"",limit:""}}}
-function save(d){localStorage.setItem('snapnutra',JSON.stringify(d))}
-let data=load();
-$('dry').value=data.dry||'';$('limit').value=data.limit||'';
-const grid=$('drinkGrid');
-DRINKS.forEach(d=>{const b=document.createElement('button');b.className='secondary';b.textContent=d;b.onclick=()=>{picked=d;$('picked').textContent='You picked: '+d;grid.classList.remove('open')};grid.appendChild(b)});
-$('handBtn').onclick=()=>grid.classList.toggle('open');
-function refresh(){
-  const today=data.entries.filter(e=>e.date===todayKey());
-  const ml=today.reduce((s,e)=>s+e.ml,0);
-  const fl=(ml/29.5735);
-  $('todayTotal').textContent=ml+' mL · '+fl.toFixed(1)+' fl oz';
-  const dry=parseFloat(data.dry), lim=parseFloat(data.limit);
-  if(!isNaN(dry)&&!isNaN(lim)&&lim>dry){
-    const allowKg=lim-dry, allowMl=Math.round(allowKg*1000);
-    const pct=Math.min(100,Math.round(ml/allowMl*100));
-    $('allowLine').textContent='Allowed gain: '+allowKg.toFixed(1)+' kg = '+allowMl+' mL';
-    $('combinedLine').textContent='Dry weight + fluid today: '+(dry+ml/1000).toFixed(2)+' kg  (+'+(ml/1000).toFixed(2)+' kg above dry weight)';
-    $('fill').style.width=pct+'%';$('fill').style.background=pct>=100?'#ef4444':pct>=70?'#f59e0b':'#22c55e';
-    $('pctLine').textContent=pct+'% full';
-    const left=allowMl-ml;
-    $('leftLine').textContent=left>=0?left+' mL left':Math.abs(left)+' mL over your limit';
-    const w=$('warn');
-    if(pct>=100){w.textContent='⛔ You passed your limit';w.style.background='#ef4444'}
-    else if(pct>=90){w.textContent='⚠️ Very close to your limit';w.style.background='#f59e0b';w.style.color='#000'}
-    else if(pct>=70){w.textContent='⚠️ Getting close to your limit';w.style.background='#f59e0b';w.style.color='#000'}
-    else{w.textContent='✅ Plenty left';w.style.background='#166534';w.style.color='#fff'}
-  } else {
-    $('allowLine').textContent='';$('combinedLine').textContent='';$('pctLine').textContent='';$('leftLine').textContent='';
+  :root{
+    --bg:#041816;
+    --bg2:#072623;
+    --card:#0b322e;
+    --card2:#0e3d38;
+    --line:#1d5a52;
+    --ink:#f2fbf8;
+    --muted:#a8cdc4;
+    --yellow:#ffd21f;
+    --yellow-ink:#241c00;
+    --teal:#17b8a6;
+    --teal-dark:#0d7a6f;
+    --green:#3ddc84;
+    --amber:#ffb020;
+    --orange:#ff7a1a;
+    --red:#ff4d4d;
+    --radius:22px;
   }
-  const list=$('list');list.innerHTML='';
-  today.forEach((e,i)=>{
-    const idx=data.entries.indexOf(e);
-    const div=document.createElement('div');div.className='row';
-    div.innerHTML='<span>'+e.name+' — '+e.ml+' mL · '+(e.ml/29.5735).toFixed(1)+' fl oz</span>';
-    const del=document.createElement('button');del.className='small secondary';del.textContent='Delete';del.onclick=()=>{data.entries.splice(idx,1);save(data);refresh()};
-    div.appendChild(del);list.appendChild(div);
+  html{ box-sizing:border-box; }
+  *,*::before,*::after{ box-sizing:inherit; }
+  body{
+    margin:0;
+    font-family:"Nunito", system-ui, -apple-system, "Segoe UI", sans-serif;
+    background:
+      radial-gradient(900px 500px at 110% -10%, rgba(23,184,166,.28), transparent 60%),
+      radial-gradient(700px 420px at -20% 0%, rgba(255,210,31,.10), transparent 55%),
+      linear-gradient(180deg, var(--bg2), var(--bg) 340px);
+    color:var(--ink);
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{ max-width:560px; margin:0 auto; padding:18px 16px 48px; }
+  h1,h2,h3,p{ margin:0; }
+  button{ font-family:inherit; cursor:pointer; }
+  input{ font-family:inherit; }
+
+  .appname{
+    display:flex; align-items:center; gap:10px;
+    font-size:1.35rem; font-weight:900; letter-spacing:.2px; margin:2px 2px 16px;
+  }
+  .appname .dot{
+    width:38px; height:38px; border-radius:13px; flex:0 0 auto;
+    background:linear-gradient(145deg, var(--yellow), #ffb020);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .appname .dot svg{ width:22px; height:22px; }
+  .appname small{ display:block; font-size:.82rem; font-weight:700; color:var(--muted); letter-spacing:0; }
+
+  .card{
+    background:linear-gradient(180deg, var(--card2), var(--card));
+    border:1.5px solid var(--line);
+    border-radius:var(--radius);
+    padding:20px 18px;
+    margin-bottom:16px;
+    box-shadow:0 10px 26px rgba(0,0,0,.35);
+  }
+  .card h2{ font-size:1.45rem; font-weight:900; line-height:1.15; }
+  .card .sub{ color:var(--muted); font-size:1.02rem; font-weight:600; line-height:1.45; margin-top:8px; }
+
+  /* ---------- Photo first ---------- */
+  .photo-card{ border-color:#2a7a6d; }
+  .photo-btns{ display:grid; gap:12px; margin-top:16px; }
+  .btn{
+    border:none; border-radius:18px;
+    min-height:64px; padding:14px 18px;
+    font-size:1.18rem; font-weight:900;
+    display:flex; align-items:center; justify-content:center; gap:10px;
+    width:100%;
+    transition:transform .08s ease, filter .15s ease;
+  }
+  .btn:active{ transform:scale(.985); }
+  .btn svg{ width:26px; height:26px; flex:0 0 auto; }
+  .btn-yellow{ background:linear-gradient(180deg,#ffe14d,var(--yellow)); color:var(--yellow-ink); box-shadow:0 6px 18px rgba(255,210,31,.28); }
+  .btn-teal{ background:linear-gradient(180deg,#1fd1bd,var(--teal-dark)); color:#eafffb; box-shadow:0 6px 18px rgba(23,184,166,.25); }
+  .photo-status{
+    margin-top:14px; font-size:1.05rem; font-weight:800; line-height:1.4;
+    background:rgba(0,0,0,.28); border:1.5px dashed #2a7a6d; border-radius:14px;
+    padding:12px 14px; display:none;
+  }
+  .photo-status.show{ display:block; }
+  .photo-status .ok{ color:var(--green); }
+  .photo-preview{ display:none; margin-top:14px; }
+  .photo-preview.show{ display:block; }
+  .photo-preview img{
+    width:100%; max-height:260px; object-fit:cover; border-radius:16px;
+    border:2px solid var(--line); display:block;
+  }
+  .photo-preview p{ margin-top:8px; color:var(--muted); font-weight:700; font-size:.95rem; }
+  .spin{
+    display:inline-block; width:18px; height:18px; vertical-align:-3px; margin-right:8px;
+    border:3px solid rgba(255,255,255,.25); border-top-color:var(--yellow);
+    border-radius:50%; animation:sp 0.8s linear infinite;
+  }
+  @keyframes sp{ to{ transform:rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce){ .spin{ animation:none; } .btn{ transition:none; } }
+
+  /* ---------- Date + combined ---------- */
+  .date-head{ margin:22px 2px 10px; }
+  .date-head .dow{ font-size:1.6rem; font-weight:900; }
+  .date-head .dmy{ color:var(--muted); font-weight:700; font-size:1rem; margin-top:2px; }
+  .combined-num{
+    font-size:3.4rem; font-weight:900; line-height:1; margin-top:10px; letter-spacing:-.5px;
+  }
+  .combined-num small{ font-size:1.3rem; font-weight:800; color:var(--muted); }
+  .today-tag{
+    display:inline-block; background:var(--yellow); color:var(--yellow-ink);
+    font-weight:900; font-size:.85rem; letter-spacing:1.2px;
+    padding:4px 12px; border-radius:999px;
+  }
+  .mini-stats{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:16px; }
+  .mini{
+    background:rgba(0,0,0,.28); border:1.5px solid var(--line); border-radius:16px; padding:12px 14px;
+  }
+  .mini .k{ color:var(--muted); font-weight:800; font-size:.85rem; letter-spacing:.4px; text-transform:uppercase; }
+  .mini .v{ font-size:1.5rem; font-weight:900; margin-top:2px; }
+  .fineprint{ color:var(--muted); font-weight:700; font-size:.92rem; margin-top:12px; }
+
+  /* ---------- Weight cards ---------- */
+  .weight-grid{ display:grid; gap:16px; }
+  @media (min-width:520px){ .weight-grid{ grid-template-columns:1fr 1fr; } .weight-grid .card{ margin-bottom:0; } }
+  .w-input-row{ display:flex; gap:10px; margin-top:14px; }
+  .w-input-row input{
+    flex:1; min-width:0; height:60px; border-radius:14px;
+    border:2px solid var(--line); background:#05201d; color:var(--ink);
+    font-size:1.5rem; font-weight:900; padding:6px 14px; text-align:center;
+  }
+  .w-input-row input:focus{ outline:3px solid rgba(255,210,31,.55); outline-offset:1px; border-color:var(--yellow); }
+  .save-btn{
+    border:none; border-radius:14px; padding:0 20px; min-height:60px;
+    background:linear-gradient(180deg,#1fd1bd,var(--teal-dark)); color:#eafffb;
+    font-size:1.1rem; font-weight:900;
+  }
+  .w-saved{ margin-top:10px; font-weight:800; color:var(--green); font-size:.98rem; min-height:1.3em; }
+  .w-err{ margin-top:10px; font-weight:800; color:#ff9c9c; font-size:.98rem; display:none; }
+  .w-err.show{ display:block; }
+  .w-now{ margin-top:6px; color:var(--muted); font-weight:700; font-size:.95rem; }
+
+  /* ---------- Progress line ---------- */
+  .gauge-card{ margin-top:16px; }
+  .gauge-top{ display:flex; justify-content:space-between; align-items:baseline; gap:10px; flex-wrap:wrap; }
+  .gauge-pct{ font-size:2rem; font-weight:900; }
+  .gauge-left{ font-size:1.15rem; font-weight:900; }
+  .track{
+    margin-top:12px; height:26px; border-radius:999px;
+    background:#05201d; border:2px solid var(--line); overflow:hidden; position:relative;
+  }
+  .fill{
+    height:100%; width:0%;
+    background:linear-gradient(90deg, var(--green), #a8e063);
+    border-radius:999px;
+    transition:width .6s ease, background .3s ease;
+  }
+  .fill.warn70{ background:linear-gradient(90deg, var(--amber), #ffd21f); }
+  .fill.warn90{ background:linear-gradient(90deg, var(--orange), var(--amber)); }
+  .fill.over{ background:linear-gradient(90deg, var(--red), var(--orange)); }
+  .scale{ display:flex; justify-content:space-between; color:var(--muted); font-weight:800; font-size:.85rem; margin-top:6px; }
+  .warn{
+    margin-top:14px; border-radius:14px; padding:12px 14px;
+    font-size:1.12rem; font-weight:900; text-align:center;
+  }
+  .warn.ok{ background:rgba(61,220,132,.14); color:var(--green); border:1.5px solid rgba(61,220,132,.5); }
+  .warn.mid{ background:rgba(255,176,32,.14); color:var(--amber); border:1.5px solid rgba(255,176,32,.55); }
+  .warn.high{ background:rgba(255,122,26,.16); color:#ffa25e; border:1.5px solid rgba(255,122,26,.6); }
+  .warn.over{ background:rgba(255,77,77,.16); color:#ff9c9c; border:1.5px solid rgba(255,77,77,.6); }
+  .allowed{ margin-top:12px; color:var(--muted); font-weight:700; font-size:1rem; text-align:center; }
+  .allowed strong{ color:var(--ink); }
+
+  /* ---------- Add by hand ---------- */
+  .hand-panel{ display:none; margin-top:14px; }
+  .hand-panel.open{ display:block; }
+  .drink-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .drink-btn{
+    border:2px solid var(--line); background:#05201d; color:var(--ink);
+    border-radius:16px; padding:14px 10px; min-height:76px;
+    font-size:1.05rem; font-weight:900; line-height:1.25; text-align:center;
+  }
+  .drink-btn span{ display:block; color:var(--teal); font-size:.95rem; font-weight:800; margin-top:3px; }
+  .drink-btn:active{ border-color:var(--yellow); background:#0a2f2a; }
+  .hand-note{ color:var(--muted); font-weight:700; font-size:.95rem; margin-top:12px; text-align:center; }
+
+  /* ---------- Today's list ---------- */
+  .list-head{ display:flex; justify-content:space-between; align-items:baseline; gap:10px; }
+  .list-total{ font-weight:900; color:var(--yellow); font-size:1.1rem; white-space:nowrap; }
+  .empty{
+    margin-top:14px; text-align:center; color:var(--muted); font-weight:700; font-size:1.02rem;
+    border:1.5px dashed #2a7a6d; border-radius:14px; padding:18px 12px; line-height:1.5;
+  }
+  .item{
+    margin-top:12px; background:rgba(0,0,0,.28); border:1.5px solid var(--line);
+    border-radius:16px; padding:14px;
+  }
+  .item-main{ display:flex; justify-content:space-between; align-items:center; gap:12px; cursor:pointer; background:none; border:none; color:inherit; width:100%; text-align:left; padding:0; }
+  .item-name{ font-size:1.12rem; font-weight:900; line-height:1.25; }
+  .item-meta{ color:var(--muted); font-weight:700; font-size:.9rem; margin-top:3px; }
+  .item-ml{ font-size:1.3rem; font-weight:900; color:var(--yellow); white-space:nowrap; text-align:right; }
+  .item-ml small{ display:block; font-size:.8rem; color:var(--muted); font-weight:800; }
+  .editor{ display:none; margin-top:14px; border-top:1.5px solid var(--line); padding-top:14px; }
+  .editor.open{ display:block; }
+  .editor label{ display:block; font-weight:800; color:var(--muted); font-size:.92rem; margin:10px 0 6px; }
+  .editor input{
+    width:100%; height:56px; border-radius:12px; border:2px solid var(--line);
+    background:#05201d; color:var(--ink); font-size:1.25rem; font-weight:800; padding:6px 12px;
+  }
+  .editor input:focus{ outline:3px solid rgba(255,210,31,.55); border-color:var(--yellow); }
+  .editor-btns{ display:flex; gap:10px; margin-top:14px; }
+  .editor-btns button{ flex:1; min-height:54px; border-radius:12px; border:none; font-size:1.05rem; font-weight:900; }
+  .ed-save{ background:linear-gradient(180deg,#ffe14d,var(--yellow)); color:var(--yellow-ink); }
+  .ed-del{ background:rgba(255,77,77,.16); color:#ff9c9c; border:1.5px solid rgba(255,77,77,.55) !important; }
+  .quick-row{ display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+  .quick-row button{
+    border:2px solid var(--line); background:#05201d; color:var(--ink);
+    border-radius:999px; padding:8px 14px; font-weight:900; font-size:.98rem;
+  }
+
+  /* ---------- History ---------- */
+  .hist-item{
+    display:flex; justify-content:space-between; gap:12px;
+    padding:12px 2px; border-bottom:1.5px solid rgba(29,90,82,.6); font-weight:800; font-size:1rem;
+  }
+  .hist-item:last-child{ border-bottom:none; }
+  .hist-item .h-ml{ color:var(--yellow); font-weight:900; white-space:nowrap; }
+  .hist-empty{ color:var(--muted); font-weight:700; margin-top:10px; }
+  .newday-btn{
+    margin-top:16px; width:100%; min-height:56px; border-radius:14px;
+    background:none; border:2px solid var(--line); color:var(--muted);
+    font-size:1.02rem; font-weight:900;
+  }
+  .foot{ text-align:center; color:var(--muted); font-weight:700; font-size:.9rem; margin-top:6px; line-height:1.5; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="appname">
+    <span class="dot" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M12 3c3.5 4.2 6 7.6 6 10.6A6 6 0 0 1 6 13.6C6 10.6 8.5 7.2 12 3Z" fill="#241c00"/><path d="M9.5 14.5a2.6 2.6 0 0 0 2 3" stroke="#ffd21f" stroke-width="1.8" stroke-linecap="round"/></svg>
+    </span>
+    <span>Snapnutra<small>Your daily fluid tracker</small></span>
+  </div>
+
+  <!-- 1. ADD WITH A PHOTO -->
+  <section class="card photo-card" aria-labelledby="photoH">
+    <h2 id="photoH">📸 Add with a photo</h2>
+    <p class="sub">Photograph your cup, glass, bottle, or bowl. The app estimates how much fluid is in it and adds it to today straight away — your fluid total, combined weight and how much you have left all update on their own, with no extra taps.</p>
+    <div class="photo-btns">
+      <button class="btn btn-yellow" id="takePhotoBtn" type="button">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 8h3l2-2.5h6L17 8h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="13.5" r="3.6" stroke="currentColor" stroke-width="2"/></svg>
+        Take a photo
+      </button>
+      <button class="btn btn-teal" id="choosePhotoBtn" type="button">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2.5" stroke="currentColor" stroke-width="2"/><circle cx="9" cy="10" r="1.8" fill="currentColor"/><path d="m5 19 5-5 3 3 3-3 3 3" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+        Choose a photo
+      </button>
+    </div>
+    <input id="takePhotoInput" type="file" accept="image/*" capture="environment" hidden />
+    <input id="choosePhotoInput" type="file" accept="image/*" hidden />
+    <div class="photo-preview" id="photoPreview">
+      <img id="photoImg" alt="The drink photo you just added" />
+      <p>Your photo — the estimate from it is in Today's list below.</p>
+    </div>
+    <div class="photo-status" id="photoStatus" role="status" aria-live="polite"></div>
+  </section>
+
+  <!-- 2. DATE + WHERE YOUR WEIGHT IS GOING -->
+  <div class="date-head">
+    <div class="dow" id="dowEl">Today</div>
+    <div class="dmy" id="dmyEl"></div>
+  </div>
+  <section class="card" aria-labelledby="goingH">
+    <span class="today-tag">TODAY</span>
+    <h2 id="goingH" style="margin-top:10px;">Where your weight is going</h2>
+    <div class="combined-num"><span id="combinedEl">—</span> <small>kg combined weight</small></div>
+    <p class="sub">That is your <strong style="color:var(--ink)">dry weight plus the fluid you have had today</strong>.</p>
+    <p class="sub" id="aboveEl">Add your dry weight below to see this number.</p>
+    <div class="mini-stats">
+      <div class="mini"><div class="k">Drank today</div><div class="v" id="drankEl">0 mL</div></div>
+      <div class="mini"><div class="k">Left to drink</div><div class="v" id="leftMiniEl">—</div></div>
+    </div>
+    <p class="fineprint">Planning estimate only — this is not your actual body weight.</p>
+  </section>
+
+  <!-- 3. DRY WEIGHT + WEIGHT LIMIT + LINE -->
+  <div class="weight-grid">
+    <section class="card" aria-labelledby="dryH">
+      <h2 id="dryH">My dry weight (kg)</h2>
+      <p class="sub">Your weight right after dialysis, with the extra fluid off. This number never changes when you add a drink.</p>
+      <div class="w-input-row">
+        <input id="dryInput" type="number" inputmode="decimal" step="0.1" min="20" max="300" placeholder="50.5" aria-label="My dry weight in kilograms" />
+        <button class="save-btn" id="drySave" type="button" aria-label="Save my dry weight">Save</button>
+      </div>
+      <div class="w-now" id="dryNow">Not set yet.</div>
+      <div class="w-saved" id="drySaved"></div>
+    </section>
+
+    <section class="card" aria-labelledby="limitH">
+      <h2 id="limitH">My weight limit (kg)</h2>
+      <p class="sub">The highest weight you and your care team are happy with before dialysis. It must be higher than your dry weight.</p>
+      <div class="w-input-row">
+        <input id="limitInput" type="number" inputmode="decimal" step="0.1" min="20" max="320" placeholder="53" aria-label="My weight limit in kilograms" />
+        <button class="save-btn" id="limitSave" type="button" aria-label="Save my weight limit">Save</button>
+      </div>
+      <div class="w-now" id="limitNow">Not set yet.</div>
+      <div class="w-err" id="limitErr">Your weight limit needs to be higher than your dry weight. Please check the two numbers and save again.</div>
+      <div class="w-saved" id="limitSaved"></div>
+    </section>
+  </div>
+
+  <section class="card gauge-card" aria-labelledby="gaugeH">
+    <h2 id="gaugeH" style="font-size:1.2rem;">How full is today?</h2>
+    <div class="gauge-top">
+      <span class="gauge-pct" id="pctEl">—</span>
+      <span class="gauge-left" id="leftEl"></span>
+    </div>
+    <div class="track" role="img" aria-label="A line showing how much of today's allowed fluid you have used">
+      <div class="fill" id="fillEl"></div>
+    </div>
+    <div class="scale"><span>0%</span><span>100% — your limit</span></div>
+    <div class="warn ok" id="warnEl">Add your dry weight and weight limit above to see your line.</div>
+    <p class="allowed" id="allowedEl"></p>
+  </section>
+
+  <!-- 4. ADD BY HAND -->
+  <section class="card" aria-labelledby="handH">
+    <h2 id="handH" style="font-size:1.2rem;">No photo? No problem.</h2>
+    <button class="btn btn-yellow" id="addHandBtn" type="button" aria-expanded="false" style="margin-top:14px;">✋ Add by hand</button>
+    <div class="hand-panel" id="handPanel">
+      <div class="drink-grid" id="drinkGrid"></div>
+      <p class="hand-note">Tap a drink and it is added to today straight away.</p>
+    </div>
+  </section>
+
+  <!-- 5. TODAY'S LIST -->
+  <section class="card" aria-labelledby="listH">
+    <div class="list-head">
+      <h2 id="listH">Today's list</h2>
+      <span class="list-total" id="todayTotalEl">0 mL</span>
+    </div>
+    <div id="todayList"></div>
+    <button class="newday-btn" id="newDayBtn" type="button">Start a new day (moves today's list into Past days)</button>
+  </section>
+
+  <!-- 6. PAST DAYS -->
+  <section class="card" aria-labelledby="histH">
+    <h2 id="histH" style="font-size:1.2rem;">Past days</h2>
+    <div id="historyList"></div>
+  </section>
+
+  <p class="foot">Everything is saved on this device, in this app.<br/>Estimates from photos can be fixed any time — tap an item in Today's list.</p>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var LS_KEY = "snapNutraTracker.v1";
+
+  var DRINKS = [
+    { name:"Water — glass", ml:250 },
+    { name:"Water — bottle", ml:500 },
+    { name:"Tea — mug", ml:300 },
+    { name:"Coffee — mug", ml:300 },
+    { name:"Juice — glass", ml:250 },
+    { name:"Milk — glass", ml:250 },
+    { name:"Soda — can", ml:355 },
+    { name:"Soup — bowl", ml:300 },
+    { name:"Ice cream — bowl", ml:150 },
+    { name:"Smoothie", ml:350 },
+    { name:"Sports drink", ml:500 },
+    { name:"Broth — mug", ml:250 }
+  ];
+
+  function todayKey(){
+    var d = new Date();
+    return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+  }
+  function prettyDate(key){
+    var p = key.split("-");
+    var d = new Date(Number(p[0]), Number(p[1])-1, Number(p[2]));
+    return d.toLocaleDateString(undefined, { weekday:"long", month:"long", day:"numeric" });
+  }
+
+  var state = { dryKg:null, limitKg:null, day: todayKey(), items:[], history:[] };
+
+  function load(){
+    try{
+      var raw = localStorage.getItem(LS_KEY);
+      if(raw){
+        var s = JSON.parse(raw);
+        if(s && typeof s === "object"){
+          state.dryKg = (typeof s.dryKg === "number") ? s.dryKg : null;
+          state.limitKg = (typeof s.limitKg === "number") ? s.limitKg : null;
+          state.history = Array.isArray(s.history) ? s.history : [];
+          if(s.day === todayKey() && Array.isArray(s.items)){
+            state.day = s.day; state.items = s.items;
+          } else if(Array.isArray(s.items) && s.items.length){
+            state.history.unshift({ day: s.day || todayKey(), items: s.items });
+            state.day = todayKey(); state.items = [];
+          }
+        }
+      }
+    }catch(e){ /* storage unavailable: keep in-memory state */ }
+  }
+  function save(){
+    try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(e){}
+  }
+
+  function drankMl(){
+    var t = 0;
+    for(var i=0;i<state.items.length;i++){ t += Number(state.items[i].ml)||0; }
+    return t;
+  }
+  function flOz(ml){ return Math.round(ml/29.5735*10)/10; }
+  function fmtKg(n){ return (Math.round(n*100)/100).toFixed(2); }
+
+  /* ---------- Elements ---------- */
+  function el(id){ return document.getElementById(id); }
+  var dowEl=el("dowEl"), dmyEl=el("dmyEl"),
+      combinedEl=el("combinedEl"), aboveEl=el("aboveEl"),
+      drankEl=el("drankEl"), leftMiniEl=el("leftMiniEl"),
+      dryInput=el("dryInput"), limitInput=el("limitInput"),
+      dryNow=el("dryNow"), limitNow=el("limitNow"),
+      drySaved=el("drySaved"), limitSaved=el("limitSaved"), limitErr=el("limitErr"),
+      pctEl=el("pctEl"), leftEl=el("leftEl"), fillEl=el("fillEl"),
+      warnEl=el("warnEl"), allowedEl=el("allowedEl"),
+      todayList=el("todayList"), todayTotalEl=el("todayTotalEl"),
+      historyList=el("historyList"),
+      photoStatus=el("photoStatus"), photoPreview=el("photoPreview"), photoImg=el("photoImg");
+
+  var now = new Date();
+  dowEl.textContent = now.toLocaleDateString(undefined,{ weekday:"long" });
+  dmyEl.textContent = now.toLocaleDateString(undefined,{ month:"long", day:"numeric", year:"numeric" });
+
+  /* ---------- Render ---------- */
+  function render(){
+    var drank = drankMl();
+    var dry = state.dryKg, limit = state.limitKg;
+    var haveBoth = (typeof dry === "number" && typeof limit === "number" && limit > dry);
+    var allowedMl = haveBoth ? Math.round((limit - dry)*1000) : null;
+
+    /* Combined weight — dry weight itself never changes */
+    if(typeof dry === "number"){
+      var combined = dry + drank/1000;
+      combinedEl.textContent = fmtKg(combined);
+      var above = drank/1000;
+      aboveEl.innerHTML = drank === 0
+        ? "Nothing drunk yet today — you are right at your dry weight."
+        : "You are <strong style='color:var(--ink)'>" + fmtKg(above) + " kg above your dry weight</strong> from today's fluid.";
+    } else {
+      combinedEl.textContent = "—";
+      aboveEl.textContent = "Add your dry weight below to see this number.";
+    }
+    drankEl.textContent = drank + " mL";
+    todayTotalEl.textContent = drank + " mL today";
+
+    /* Weight cards */
+    dryNow.textContent = (typeof dry === "number") ? ("Saved: " + fmtKg(dry) + " kg") : "Not set yet.";
+    limitNow.textContent = (typeof limit === "number") ? ("Saved: " + fmtKg(limit) + " kg") : "Not set yet.";
+    if(document.activeElement !== dryInput && typeof dry === "number") dryInput.value = dry;
+    if(document.activeElement !== limitInput && typeof limit === "number") limitInput.value = limit;
+
+    /* Gauge */
+    if(haveBoth){
+      var pct = drank/allowedMl*100;
+      var pctShown = Math.floor(pct);
+      var left = allowedMl - drank;
+      pctEl.textContent = pctShown + "% full";
+      leftMiniEl.textContent = left >= 0 ? (left + " mL") : ("+" + Math.abs(left) + " mL over");
+      leftEl.textContent = left >= 0 ? (left + " mL left") : (Math.abs(left) + " mL over your limit");
+      fillEl.style.width = Math.min(100, pct) + "%";
+      fillEl.className = "fill" + (pct >= 100 ? " over" : pct >= 90 ? " warn90" : pct >= 70 ? " warn70" : "");
+      warnEl.className = "warn " + (pct >= 100 ? "over" : pct >= 90 ? "high" : pct >= 70 ? "mid" : "ok");
+      if(pct >= 100 && drank > allowedMl){
+        warnEl.textContent = "⚠️ Over your limit — you have passed the line by " + Math.abs(left) + " mL.";
+      } else if(pct >= 100){
+        warnEl.textContent = "⚠️ You have reached your limit for today.";
+      } else if(pct >= 90){
+        warnEl.textContent = "Very close — only " + left + " mL left today.";
+      } else if(pct >= 70){
+        warnEl.textContent = "Getting close — " + left + " mL left today.";
+      } else {
+        warnEl.textContent = "Plenty left — " + left + " mL still to go today. 👍";
+      }
+      allowedEl.innerHTML = "Allowed gain: <strong>" + fmtKg(limit - dry) + " kg = " + allowedMl + " mL</strong> between your dry weight and your limit.";
+    } else if(typeof dry === "number" && typeof limit === "number"){
+      pctEl.textContent = "—";
+      leftEl.textContent = "";
+      leftMiniEl.textContent = "—";
+      fillEl.style.width = "0%"; fillEl.className = "fill";
+      warnEl.className = "warn over";
+      warnEl.textContent = "Your weight limit needs to be higher than your dry weight.";
+      allowedEl.textContent = "";
+    } else {
+      pctEl.textContent = "—";
+      leftEl.textContent = "";
+      leftMiniEl.textContent = "—";
+      fillEl.style.width = "0%"; fillEl.className = "fill";
+      warnEl.className = "warn ok";
+      warnEl.textContent = "Add your dry weight and weight limit above to see your line.";
+      allowedEl.textContent = "";
+    }
+
+    renderList();
+    renderHistory();
+  }
+
+  function renderList(){
+    todayList.innerHTML = "";
+    if(!state.items.length){
+      var d = document.createElement("div");
+      d.className = "empty";
+      d.innerHTML = "Nothing added yet today.<br/>Take a photo above, or tap <strong style='color:var(--ink)'>Add by hand</strong>.";
+      todayList.appendChild(d);
+      return;
+    }
+    state.items.forEach(function(item, idx){
+      var box = document.createElement("div");
+      box.className = "item";
+
+      var main = document.createElement("button");
+      main.type = "button";
+      main.className = "item-main";
+      main.setAttribute("aria-label", "Change " + item.name);
+      var left = document.createElement("span");
+      var nm = document.createElement("span"); nm.className = "item-name"; nm.textContent = item.name;
+      var meta = document.createElement("span"); meta.className = "item-meta"; meta.style.display = "block";
+      meta.textContent = (item.source === "photo" ? "📸 From your photo" : "✋ Added by hand") + (item.time ? " · " + item.time : "");
+      left.appendChild(nm); left.appendChild(meta);
+      var right = document.createElement("span");
+      right.className = "item-ml";
+      right.textContent = item.ml + " mL";
+      var oz = document.createElement("small"); oz.textContent = flOz(item.ml) + " fl oz";
+      right.appendChild(oz);
+      main.appendChild(left); main.appendChild(right);
+
+      var editor = document.createElement("div");
+      editor.className = "editor";
+      var lab1 = document.createElement("label"); lab1.textContent = "Name";
+      var nameIn = document.createElement("input"); nameIn.type = "text"; nameIn.value = item.name;
+      var lab2 = document.createElement("label"); lab2.textContent = "Amount (mL)";
+      var mlIn = document.createElement("input"); mlIn.type = "number"; mlIn.inputMode = "numeric"; mlIn.min = "1"; mlIn.max = "3000"; mlIn.value = item.ml;
+      var quick = document.createElement("div"); quick.className = "quick-row";
+      [100,200,250,300,355,500,651].forEach(function(v){
+        var q = document.createElement("button"); q.type = "button"; q.textContent = v + " mL";
+        q.addEventListener("click", function(){ mlIn.value = v; });
+        quick.appendChild(q);
+      });
+      var btns = document.createElement("div"); btns.className = "editor-btns";
+      var sv = document.createElement("button"); sv.type = "button"; sv.className = "ed-save"; sv.textContent = "Save changes";
+      var del = document.createElement("button"); del.type = "button"; del.className = "ed-del"; del.textContent = "Remove";
+      sv.addEventListener("click", function(){
+        var v = parseInt(mlIn.value, 10);
+        if(!(v > 0)){ mlIn.focus(); return; }
+        item.name = nameIn.value.trim() || item.name;
+        item.ml = v;
+        save(); render();
+      });
+      del.addEventListener("click", function(){
+        state.items.splice(idx, 1);
+        save(); render();
+      });
+      btns.appendChild(sv); btns.appendChild(del);
+      editor.appendChild(lab1); editor.appendChild(nameIn);
+      editor.appendChild(lab2); editor.appendChild(mlIn);
+      editor.appendChild(quick); editor.appendChild(btns);
+
+      main.addEventListener("click", function(){
+        var open = editor.classList.toggle("open");
+        if(open){ mlIn.focus(); mlIn.select(); }
+      });
+
+      box.appendChild(main); box.appendChild(editor);
+      todayList.appendChild(box);
+    });
+  }
+
+  function renderHistory(){
+    historyList.innerHTML = "";
+    if(!state.history.length){
+      var p = document.createElement("p");
+      p.className = "hist-empty";
+      p.textContent = "No past days yet. Yesterday's list will appear here on its own.";
+      historyList.appendChild(p);
+      return;
+    }
+    state.history.slice(0, 14).forEach(function(day){
+      var total = 0;
+      (day.items||[]).forEach(function(i){ total += Number(i.ml)||0; });
+      var row = document.createElement("div");
+      row.className = "hist-item";
+      var a = document.createElement("span"); a.textContent = prettyDate(day.day) + " · " + (day.items||[]).length + " drinks";
+      var b = document.createElement("span"); b.className = "h-ml"; b.textContent = total + " mL";
+      row.appendChild(a); row.appendChild(b);
+      historyList.appendChild(row);
+    });
+  }
+
+  /* ---------- Add items ---------- */
+  function addItem(name, ml, source){
+    var t = new Date();
+    state.items.push({
+      name: name,
+      ml: ml,
+      source: source,
+      time: t.toLocaleTimeString(undefined, { hour:"numeric", minute:"2-digit" })
+    });
+    save(); render();
+  }
+
+  /* ---------- Dry weight & limit saving ---------- */
+  function parseKg(v){
+    var n = parseFloat(String(v).replace(",", "."));
+    return (isFinite(n) && n > 0) ? Math.round(n*100)/100 : null;
+  }
+  el("drySave").addEventListener("click", function(){
+    var v = parseKg(dryInput.value);
+    drySaved.textContent = "";
+    if(v === null){ dryNow.textContent = "Please type your dry weight in kg, then tap Save."; dryInput.focus(); return; }
+    state.dryKg = v; save(); render();
+    drySaved.textContent = "✓ Saved — dry weight is " + fmtKg(v) + " kg.";
+    if(typeof state.limitKg === "number" && state.limitKg <= v){
+      limitErr.classList.add("show");
+    } else {
+      limitErr.classList.remove("show");
+    }
   });
-  $('emptyMsg').style.display=today.length?'none':'block';
-}
-$('saveWeights').onclick=()=>{
-  const dry=parseFloat($('dry').value), lim=parseFloat($('limit').value);
-  if(isNaN(dry)||isNaN(lim)||lim<=dry){$('weightErr').textContent='Your weight limit must be higher than your dry weight. Please check both numbers.';return}
-  $('weightErr').textContent='';data.dry=$('dry').value;data.limit=$('limit').value;save(data);refresh();
-};
-function addEntry(name,ml){if(!name)name='Drink';data.entries.push({date:todayKey(),name:name,ml:parseInt(ml)});save(data);refresh()}
-$('addHandBtn').onclick=()=>{if(!picked){alert('Tap Add by hand and pick a drink first.');return}addEntry(picked,$('handAmt').value)};
-function showPhoto(file){if(!file)return;const r=new FileReader();r.onload=e=>{const p=$('preview');p.src=e.target.result;p.style.display='block';$('photoForm').style.display='block'};r.readAsDataURL(file)}
-$('cam').onchange=e=>showPhoto(e.target.files[0]);$('file').onchange=e=>showPhoto(e.target.files[0]);
-$('addPhotoBtn').onclick=()=>{const ml=$('photoMl').value||$('photoAmt').value;addEntry($('photoName').value||'Photo drink',ml);$('photoForm').style.display='none';$('preview').style.display='none';$('photoMl').value=''};
-refresh();
+  el("limitSave").addEventListener("click", function(){
+    var v = parseKg(limitInput.value);
+    limitSaved.textContent = "";
+    limitErr.classList.remove("show");
+    if(v === null){ limitNow.textContent = "Please type your weight limit in kg, then tap Save."; limitInput.focus(); return; }
+    if(typeof state.dryKg === "number" && v <= state.dryKg){
+      limitErr.classList.add("show");
+      limitInput.focus();
+      return;
+    }
+    state.limitKg = v; save(); render();
+    limitSaved.textContent = "✓ Saved — weight limit is " + fmtKg(v) + " kg.";
+  });
+
+  /* ---------- Add by hand ---------- */
+  var handPanel = el("handPanel");
+  var addHandBtn = el("addHandBtn");
+  var grid = el("drinkGrid");
+  DRINKS.forEach(function(d){
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "drink-btn";
+    b.innerHTML = "";
+    b.appendChild(document.createTextNode(d.name));
+    var s = document.createElement("span"); s.textContent = d.ml + " mL · " + flOz(d.ml) + " fl oz";
+    b.appendChild(s);
+    b.addEventListener("click", function(){
+      addItem(d.name, d.ml, "hand");
+      handPanel.classList.remove("open");
+      addHandBtn.setAttribute("aria-expanded", "false");
+      addHandBtn.textContent = "✋ Add by hand";
+      document.getElementById("listH").scrollIntoView({ behavior:"smooth", block:"start" });
+    });
+    grid.appendChild(b);
+  });
+  addHandBtn.addEventListener("click", function(){
+    var open = handPanel.classList.toggle("open");
+    addHandBtn.setAttribute("aria-expanded", open ? "true" : "false");
+    addHandBtn.textContent = open ? "Close ✕" : "✋ Add by hand";
+  });
+
+  /* ---------- New day ---------- */
+  el("newDayBtn").addEventListener("click", function(){
+    if(state.items.length){
+      state.history.unshift({ day: state.day, items: state.items });
+    }
+    state.day = todayKey();
+    state.items = [];
+    save(); render();
+    window.scrollTo({ top:0, behavior:"smooth" });
+  });
+
+  /* =========================================================
+     PHOTO ESTIMATION — runs on this device, no key, no setup.
+     Looks at the photo itself: the container shape (tall can /
+     bottle, glass, mug, bowl), the visible fill line (full,
+     half, quarter…), and the drink colour — then estimates mL.
+     ========================================================= */
+  function estimateFromImage(img, fileName){
+    var W = 120;
+    var H = Math.max(60, Math.min(180, Math.round(W * img.naturalHeight / Math.max(1, img.naturalWidth))));
+    var cv = document.createElement("canvas");
+    cv.width = W; cv.height = H;
+    var ctx = cv.getContext("2d", { willReadFrequently:true });
+    ctx.drawImage(img, 0, 0, W, H);
+    var data;
+    try{ data = ctx.getImageData(0, 0, W, H).data; }
+    catch(e){ return null; }
+
+    function px(x, y){
+      var i = (y*W + x)*4;
+      return [data[i], data[i+1], data[i+2]];
+    }
+    /* Row brightness profile -> strongest horizontal edge = liquid surface */
+    var rowBright = [];
+    for(var y=0; y<H; y++){
+      var sum = 0, n = 0;
+      for(var x=Math.floor(W*0.2); x<W*0.8; x+=3){
+        var p = px(x, y);
+        sum += (p[0]+p[1]+p[2])/3; n++;
+      }
+      rowBright.push(sum/Math.max(1,n));
+    }
+    var bestEdge = 0, bestY = -1;
+    for(var y2=2; y2<H-2; y2++){
+      var g = Math.abs(rowBright[y2+2] - rowBright[y2-2]);
+      if(g > bestEdge){ bestEdge = g; bestY = y2; }
+    }
+    /* Average colour of the middle of the photo */
+    var rs=0, gs=0, bs=0, cn=0;
+    for(var y3=Math.floor(H*0.35); y3<H*0.75; y3+=2){
+      for(var x3=Math.floor(W*0.3); x3<W*0.7; x3+=2){
+        var p3 = px(x3, y3); rs+=p3[0]; gs+=p3[1]; bs+=p3[2]; cn++;
+      }
+    }
+    var avg = [rs/cn, gs/cn, bs/cn];
+
+    var aspect = img.naturalHeight / Math.max(1, img.naturalWidth);
+    var name = String(fileName||"").toLowerCase();
+
+    /* Container + full size */
+    var container, fullMl;
+    if(/arizona/.test(name) || aspect >= 1.55){
+      container = "tall can / bottle";
+      fullMl = /arizona/.test(name) ? 651 : 500;
+    } else if(aspect <= 0.78){
+      container = "bowl"; fullMl = 400;
+    } else if(aspect >= 1.15){
+      container = "glass"; fullMl = 350;
+    } else {
+      container = "cup / mug"; fullMl = 300;
+    }
+
+    /* Fill level: opaque cans/bottles read as full; open cups use the edge */
+    var fill;
+    if(container === "tall can / bottle"){
+      fill = 1;
+    } else if(bestY > H*0.12 && bestY < H*0.92 && bestEdge > 14){
+      fill = 1 - (bestY / H);
+      fill = Math.max(0.2, Math.min(1, fill));
+      /* snap to friendly fractions when close */
+      [0.25, 0.5, 0.75, 1].forEach(function(f){ if(Math.abs(fill - f) < 0.09) fill = f; });
+    } else {
+      fill = 0.9;
+    }
+
+    /* Drink name: filename hints first, then colour */
+    var drink = "Drink";
+    if(/arizona|green tea/.test(name)) drink = "Green tea with ginseng and honey";
+    else if(/tea/.test(name)) drink = "Tea";
+    else if(/coffee/.test(name)) drink = "Coffee";
+    else if(/juice/.test(name)) drink = "Juice";
+    else if(/soup/.test(name)) drink = "Soup";
+    else if(/milk/.test(name)) drink = "Milk";
+    else if(/water/.test(name)) drink = "Water";
+    else if(/soda|cola|coke|pepsi/.test(name)) drink = "Soda";
+    else if(/ice ?cream/.test(name)) drink = "Ice cream";
+    else{
+      var r=avg[0], g=avg[1], b=avg[2];
+      if(g > r && g > b) drink = "Tea / juice";
+      else if(r > 110 && g > 70 && b < 80) drink = "Coffee / tea";
+      else if(r > 185 && g > 185 && b > 175) drink = "Milk";
+      else if(b >= r && b >= g) drink = "Water";
+      else drink = "Drink";
+    }
+
+    var ml = Math.round(fullMl * fill);
+    ml = Math.max(30, Math.min(1200, ml));
+    var fillWord = fill >= 0.97 ? "full" : fill >= 0.7 ? "about three-quarters full" : fill >= 0.42 ? "about half full" : fill >= 0.2 ? "about a quarter full" : "nearly empty";
+    return { drink: drink, container: container, ml: ml, fill: fill, fillWord: fillWord };
+  }
+
+  function handlePhotoFile(file){
+    if(!file) return;
+    photoStatus.className = "photo-status show";
+    photoStatus.innerHTML = "<span class='spin'></span>Looking at your photo…";
+    var url = URL.createObjectURL(file);
+    var img = new Image();
+    img.onload = function(){
+      photoImg.src = url;
+      photoPreview.classList.add("show");
+      var est = estimateFromImage(img, file.name);
+      if(!est){
+        photoStatus.innerHTML = "That photo could not be read on this device. Please try <strong>Add by hand</strong> below — it takes one tap.";
+        return;
+      }
+      var label = est.drink + " — " + est.container + ", " + est.fillWord;
+      addItem(label, est.ml, "photo");
+      photoStatus.innerHTML = "<span class='ok'>✓ Added to today:</span> " + label + " — <strong>" + est.ml + " mL (" + flOz(est.ml) + " fl oz)</strong>.<br/>Your total, combined weight and line have updated. If the amount looks off, tap it in Today's list to fix it.";
+      document.getElementById("goingH").scrollIntoView({ behavior:"smooth", block:"start" });
+    };
+    img.onerror = function(){
+      photoStatus.innerHTML = "That photo could not be opened. Please try again, or use <strong>Add by hand</strong> below.";
+    };
+    img.src = url;
+  }
+
+  var takeInput = el("takePhotoInput"), chooseInput = el("choosePhotoInput");
+  el("takePhotoBtn").addEventListener("click", function(){ takeInput.click(); });
+  el("choosePhotoBtn").addEventListener("click", function(){ chooseInput.click(); });
+  takeInput.addEventListener("change", function(){ handlePhotoFile(takeInput.files && takeInput.files[0]); takeInput.value = ""; });
+  chooseInput.addEventListener("change", function(){ handlePhotoFile(chooseInput.files && chooseInput.files[0]); chooseInput.value = ""; });
+
+  load();
+  render();
+})();
 </script>
-</body></html>
+</body>
+</html>
