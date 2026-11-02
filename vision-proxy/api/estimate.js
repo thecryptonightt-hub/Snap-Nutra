@@ -24,6 +24,7 @@ export default async function handler(req, res) {
  "capacity_ml":350,
  "ml":175}
 Rules: fill is the fraction of the container that is full (0.25, 0.5, 0.75, 1.0, or a close fraction). capacity_ml is the container's full capacity in mL, estimated from its type and size in the photo. ml = round(capacity_ml * fill). Do not guess a brand unless it is clearly visible. If you cannot see a drink, return {"error":"no drink visible"}.`;
+  const providerErrors = {};
   // Hugging Face free vision, if configured: HF shows its token in full
   // on the creation page, so the browser can read it and type it into
   // Vercel. Free tier, no card.
@@ -35,7 +36,7 @@ Rules: fill is the fraction of the container that is full (0.25, 0.5, 0.75, 1.0,
           headers: { "Content-Type": "application/json", "Authorization": "Bearer " + hfKey },
           body: JSON.stringify({ model: hfModel, temperature: 0, messages: [{ role: "user", content: [{ type: "text", text: prompt }, { type: "image_url", image_url: { url: image.startsWith("data:") ? image : "data:image/jpeg;base64," + image } }] }] }) });
         const htxt = await hr.text();
-        if (hr.ok) {
+        if (!hr.ok) { providerErrors['hf:'+hfModel] = hr.status + ' ' + htxt.slice(0,200); } else {
           const hj = JSON.parse(htxt);
           const htext = (hj.choices && hj.choices[0] && hj.choices[0].message && hj.choices[0].message.content) || "";
           const parsed = JSON.parse(String(htext).replace(/```json|```/g, "").trim());
@@ -55,7 +56,7 @@ Rules: fill is the fraction of the container that is full (0.25, 0.5, 0.75, 1.0,
           headers: { "Content-Type": "application/json", "Authorization": "Bearer " + groqKey },
           body: JSON.stringify({ model: groqModel, temperature: 0, messages: [{ role: "user", content: [{ type: "text", text: prompt }, { type: "image_url", image_url: { url: image.startsWith("data:") ? image : "data:image/jpeg;base64," + image } }] }] }) });
         const gtxt = await gr.text();
-        if (gr.ok) {
+        if (!gr.ok) { providerErrors['groq:'+groqModel] = gr.status + ' ' + gtxt.slice(0,200); } else {
           const gj = JSON.parse(gtxt);
           const gtext = (gj.choices && gj.choices[0] && gj.choices[0].message && gj.choices[0].message.content) || "";
           const parsed = JSON.parse(String(gtext).replace(/```json|```/g, "").trim());
@@ -75,7 +76,7 @@ Rules: fill is the fraction of the container that is full (0.25, 0.5, 0.75, 1.0,
           headers: { "Content-Type": "application/json", "Authorization": "Bearer " + orKey, "HTTP-Referer": "https://thecryptonightt-hub.github.io/Snap-Nutra/", "X-Title": "Snap Nutra" },
           body: JSON.stringify({ model: orModel, temperature: 0, messages: [{ role: "user", content: [{ type: "text", text: prompt }, { type: "image_url", image_url: { url: image.startsWith("data:") ? image : "data:image/jpeg;base64," + image } }] }] }) });
         const otxt = await or.text();
-        if (or.ok) {
+        if (!or.ok) { providerErrors['openrouter:'+orModel] = or.status + ' ' + otxt.slice(0,200); } else {
           const oj = JSON.parse(otxt);
           const otext = (oj.choices && oj.choices[0] && oj.choices[0].message && oj.choices[0].message.content) || "";
           const parsed = JSON.parse(String(otext).replace(/```json|```/g, "").trim());
@@ -99,7 +100,7 @@ Rules: fill is the fraction of the container that is full (0.25, 0.5, 0.75, 1.0,
     if (r.ok) { try { j = JSON.parse(txt); } catch { j = null; } break; }
     lastDetail = txt.slice(0, 300); modelErrors[model] = lastStatus + " " + txt.slice(0, 200);
   }
-  if (!j) return res.status(502).json({ error: "vision service failed", status: lastStatus, detail: lastDetail, modelErrors });
+  if (!j) return res.status(502).json({ error: "vision service failed", status: lastStatus, detail: lastDetail, modelErrors, providerErrors });
   const text = (j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts || []).map(p => p.text || "").join("");
   try {
     const parsed = JSON.parse(text.replace(/```json|```/g, "").trim());
