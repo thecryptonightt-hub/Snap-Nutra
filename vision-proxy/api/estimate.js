@@ -27,7 +27,7 @@ Rules: fill is the fraction of the container that is full (0.25, 0.5, 0.75, 1.0,
   const r = await fetch(
     "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + encodeURIComponent(key),
     { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: "image/jpeg", data: b64 } }] }], generationConfig: { temperature: 0 } }) }
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }, { inlineData: { mimeType: "image/jpeg", data: b64 } }] }], generationConfig: { temperature: 0 } }) }
   );
   if (!r.ok) return res.status(502).json({ error: "vision service failed" });
   const j = await r.json();
