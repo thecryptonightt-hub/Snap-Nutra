@@ -27,7 +27,7 @@ Rules: fill is the fraction of the container that is full (0.25, 0.5, 0.75, 1.0,
   // Try 2.5-flash first, fall back to older flash models if a model is
   // not available on this free key. Return the upstream error text
   // (no key is ever in it) so a failure can actually be diagnosed.
-  let j = null, lastStatus = 0, lastDetail = "";
+  let j = null, lastStatus = 0, lastDetail = "", modelErrors = {};
   for (const model of ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]) {
     const r = await fetch(
       "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + encodeURIComponent(key),
@@ -37,9 +37,9 @@ Rules: fill is the fraction of the container that is full (0.25, 0.5, 0.75, 1.0,
     lastStatus = r.status;
     const txt = await r.text();
     if (r.ok) { try { j = JSON.parse(txt); } catch { j = null; } break; }
-    lastDetail = txt.slice(0, 300);
+    lastDetail = txt.slice(0, 300); modelErrors[model] = lastStatus + " " + txt.slice(0, 200);
   }
-  if (!j) return res.status(502).json({ error: "vision service failed", status: lastStatus, detail: lastDetail });
+  if (!j) return res.status(502).json({ error: "vision service failed", status: lastStatus, detail: lastDetail, modelErrors });
   const text = (j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts || []).map(p => p.text || "").join("");
   try {
     const parsed = JSON.parse(text.replace(/```json|```/g, "").trim());
