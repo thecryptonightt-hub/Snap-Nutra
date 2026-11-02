@@ -28,7 +28,7 @@ Rules: fill is the fraction of the container that is full (0.25, 0.5, 0.75, 1.0,
   // not available on this free key. Return the upstream error text
   // (no key is ever in it) so a failure can actually be diagnosed.
   let j = null, lastStatus = 0, lastDetail = "", modelErrors = {};
-  for (const model of ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]) {
+  for (const model of ["gemini-3.8-flash", "gemini-3-flash", "gemini-2.5-flash"]) {
     const r = await fetch(
       "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + encodeURIComponent(key),
       { method: "POST", headers: { "Content-Type": "application/json" },
