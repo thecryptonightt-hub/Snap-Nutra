@@ -18,13 +18,13 @@ export default async function handler(req, res) {
   if (!image || typeof image !== "string") return res.status(400).json({ error: "no image", version: "e2ddec4-v3" });
   const b64 = image.replace(/^data:image\/\w+;base64,/, "");
   const prompt = `Look at this photo of a drink. Return ONLY JSON, no other text:
-{"drink":"tea|coffee|iced coffee|water|juice|soda|milk|soup|other",
- "container":"glass|cup / mug|clear plastic cup|bowl|tall can / bottle|other",
- "fill":0.9,
- "capacity_ml":350,
- "ml":315,
- "ice_present":false,
- "ice_fraction":0}
+{"drink":"one of: tea, coffee, iced coffee, water, juice, soda, milk, soup, other",
+ "container":"one of: glass, cup / mug, clear plastic cup, bowl, tall can / bottle, other",
+ "fill":"one of: 0, 0.25, 0.5, 0.75, 0.9, 1.0",
+ "capacity_ml":"number, the container full capacity in mL",
+ "ml":"number, beverage volume only, after subtracting ice displacement",
+ "ice_present":"true or false",
+ "ice_fraction":"number 0 to 1, share of the filled volume that is ice"}
 How to judge fill — do this in order, do not guess from the middle of the cup:
 1. Find the container's top rim and its bottom. The usable interior height is rim to bottom.
 2. Find the visible beverage surface. Do NOT mistake foam, reflections, shadows, or transparent cup walls for empty space, and do NOT mistake the empty wall above the surface for the surface itself.
