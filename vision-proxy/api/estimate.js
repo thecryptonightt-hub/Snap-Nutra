@@ -32,8 +32,8 @@ Rules: fill is the fraction of the container that is full (0.25, 0.5, 0.75, 1.0,
   const cfToken = process.env.CF_API_TOKEN;
   const cfAccount = process.env.CF_ACCOUNT_ID;
   if (cfToken && cfAccount) {
-    const cfUrl = "https://api.cloudflare.com/client/v4/accounts/" + encodeURIComponent(cfAccount) + "/ai/v1/chat/completions";
-    const cfBody = JSON.stringify({ model: "@cf/meta/llama-3.2-11b-vision-instruct", temperature: 0, messages: [{ role: "user", content: [{ type: "text", text: prompt }, { type: "image_url", image_url: { url: image.startsWith("data:") ? image : "data:image/jpeg;base64," + image } }] }] });
+    const cfUrl = "https://api.cloudflare.com/client/v4/accounts/" + encodeURIComponent(cfAccount) + "/ai/run/@cf/meta/llama-3.2-11b-vision-instruct";
+    const cfBody = JSON.stringify({ messages: [{ role: "system", content: "You are a helpful assistant. Answer with JSON only." }, { role: "user", content: prompt }], image: image.startsWith("data:") ? image : "data:image/jpeg;base64," + image, max_tokens: 200 });
     async function cfCall() {
       const cr = await fetch(cfUrl, { method: "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + cfToken }, body: cfBody });
       return { status: cr.status, text: await cr.text() };
@@ -50,7 +50,7 @@ Rules: fill is the fraction of the container that is full (0.25, 0.5, 0.75, 1.0,
       }
       if (cf.status >= 200 && cf.status < 300) {
         const cj = JSON.parse(cf.text);
-        const ctext = (cj.choices && cj.choices[0] && cj.choices[0].message && cj.choices[0].message.content) || "";
+        const ctext = (cj.choices && cj.choices[0] && cj.choices[0].message && cj.choices[0].message.content) || (cj.result && cj.result.response) || (typeof cj.result === "string" ? cj.result : "") || "";
         const parsed = JSON.parse(String(ctext).replace(/```json|```/g, "").trim());
         if (!parsed.error) { const cap = Number(parsed.capacity_ml) || 0; const fl = Number(parsed.fill) || 0; const computed = cap && fl ? Math.round(cap * fl) : Math.round(parsed.ml || 0); return res.status(200).json({ drink: parsed.drink || "Drink", container: parsed.container || "glass", fill: parsed.fill, capacity_ml: parsed.capacity_ml, ml: computed }); }
       } else { providerErrors['cloudflare'] = cf.status + ' ' + cf.text.slice(0,200); }
