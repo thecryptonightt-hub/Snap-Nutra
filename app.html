@@ -823,9 +823,35 @@
     photoStatus.innerHTML = "<span class='spin'></span>Looking at your photo…";
     var url = URL.createObjectURL(file);
     var img = new Image();
-    img.onload = function(){
+    img.onload = async function(){
       photoImg.src = url;
       photoPreview.classList.add("show");
+      /* Real vision first: resize to max 512px (smaller photos read
+         much faster), send to the Snap Nutra vision backend, and use
+         its drink/container/fill/ml. Only if that fails, fall back
+         to the on-device estimate below — never a silent guess. */
+      try {
+        photoStatus.innerHTML = "<span class='spin'></span>Reading your photo with real vision… this can take a minute or so, please keep the app open.";
+        var maxSide = 512, scale = Math.min(1, maxSide / Math.max(img.naturalWidth || img.width, img.naturalHeight || img.height));
+        var cv2 = document.createElement("canvas");
+        cv2.width = Math.max(1, Math.round((img.naturalWidth || img.width) * scale));
+        cv2.height = Math.max(1, Math.round((img.naturalHeight || img.height) * scale));
+        cv2.getContext("2d").drawImage(img, 0, 0, cv2.width, cv2.height);
+        var dataUrl = cv2.toDataURL("image/jpeg", 0.8);
+        var ctrl = new AbortController();
+        var timer = setTimeout(function(){ ctrl.abort(); }, 180000);
+        var resp = await fetch("https://snap-nutra-vision-proxy.vercel.app/api/estimate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ image: dataUrl }), signal: ctrl.signal });
+        clearTimeout(timer);
+        var j = await resp.json();
+        if (resp.ok && j && j.ml && j.capacity_ml && typeof j.fill === "number") {
+          var fw = j.fill >= 0.97 ? "full" : j.fill >= 0.7 ? "about three-quarters full" : j.fill >= 0.42 ? "about half full" : j.fill >= 0.2 ? "about a quarter full" : "nearly empty";
+          var label = (j.drink || "Drink") + " — " + (j.container || "glass") + ", " + fw;
+          addItem(label, Math.round(j.ml), "photo");
+          photoStatus.innerHTML = "<span class='ok'>✓ Added to today:</span> " + label + " — <strong>" + Math.round(j.ml) + " mL (" + flOz(Math.round(j.ml)) + " fl oz)</strong>.<br/>Your total, combined weight and line have updated. If the amount looks off, tap it in Today's list to fix it.";
+          document.getElementById("goingH").scrollIntoView({ behavior:"smooth", block:"start" });
+          return;
+        }
+      } catch (e) { /* fall through to on-device estimate */ }
       var est = estimateFromImage(img, file.name);
       if(!est){
         photoStatus.innerHTML = "I could not read the fill level clearly from that photo, so I did <strong>not</strong> add a guess. Please use <strong>Add by hand</strong> below, or take the photo again with the drink centred and the liquid surface in view.";
