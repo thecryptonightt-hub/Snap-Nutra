@@ -18,12 +18,20 @@ export default async function handler(req, res) {
   if (!image || typeof image !== "string") return res.status(400).json({ error: "no image", version: "e2ddec4-v3" });
   const b64 = image.replace(/^data:image\/\w+;base64,/, "");
   const prompt = `Look at this photo of a drink. Return ONLY JSON, no other text:
-{"drink":"tea|coffee|water|juice|soda|milk|soup|other",
- "container":"glass|cup / mug|bowl|tall can / bottle|other",
- "fill":0.5,
+{"drink":"tea|coffee|iced coffee|water|juice|soda|milk|soup|other",
+ "container":"glass|cup / mug|clear plastic cup|bowl|tall can / bottle|other",
+ "fill":0.9,
  "capacity_ml":350,
- "ml":175}
-Rules: fill is the fraction of the container that is full (0.25, 0.5, 0.75, 1.0, or a close fraction). capacity_ml is the container's full capacity in mL, estimated from its type and size in the photo. ml = round(capacity_ml * fill). Do not guess a brand unless it is clearly visible. If you cannot see a drink, return {"error":"no drink visible"}.`;
+ "ml":315,
+ "ice_present":false,
+ "ice_fraction":0}
+How to judge fill — do this in order, do not guess from the middle of the cup:
+1. Find the container's top rim and its bottom. The usable interior height is rim to bottom.
+2. Find the visible beverage surface. Do NOT mistake foam, reflections, shadows, or transparent cup walls for empty space, and do NOT mistake the empty wall above the surface for the surface itself.
+3. Ice: list ice cubes sitting above or partly under the surface. Ice is NOT empty space, and ice is NOT beverage. A cup can look full because of ice even though ice displaces some liquid.
+4. Fill is total visible occupancy: the highest point reached by beverage or ice, divided by usable interior height. Use ONLY these buckets, closest one: 0 (empty), 0.25 (quarter), 0.5 (half), 0.75 (three-quarters), 0.9 (nearly full), 1.0 (full). NEVER report 0.5 when beverage or ice visibly reach near the top of the cup.
+5. ml is beverage volume ONLY: start from capacity_ml * fill, then subtract estimated ice displacement (capacity_ml * fill * ice_fraction) when ice is present. capacity_ml is the container's full capacity in mL, estimated from its type and size in the photo.
+Do not guess a brand unless it is clearly visible. If you cannot see a drink, return {"error":"no drink visible"}.`;
   const providerErrors = {};
   // Cloudflare Workers AI free vision, if configured: 10,000 neurons/day
   // free, no card, token shows in full, model Llama 3.2 11B Vision.
@@ -33,7 +41,7 @@ Rules: fill is the fraction of the container that is full (0.25, 0.5, 0.75, 1.0,
   const cfAccount = process.env.CF_ACCOUNT_ID;
   if (cfToken && cfAccount) {
     const cfUrl = "https://api.cloudflare.com/client/v4/accounts/" + encodeURIComponent(cfAccount) + "/ai/run/@cf/meta/llama-3.2-11b-vision-instruct";
-    const cfBody = JSON.stringify({ messages: [{ role: "system", content: "You are a helpful assistant. Answer with JSON only." }, { role: "user", content: prompt }], image: image.startsWith("data:") ? image : "data:image/jpeg;base64," + image, max_tokens: 200 });
+    const cfBody = JSON.stringify({ messages: [{ role: "system", content: "You are a helpful assistant. Answer with JSON only." }, { role: "user", content: prompt }], image: image.startsWith("data:") ? image : "data:image/jpeg;base64," + image, max_tokens: 300 });
     async function cfCall() {
       const cr = await fetch(cfUrl, { method: "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + cfToken }, body: cfBody });
       return { status: cr.status, text: await cr.text() };
@@ -52,7 +60,7 @@ Rules: fill is the fraction of the container that is full (0.25, 0.5, 0.75, 1.0,
         const cj = JSON.parse(cf.text);
         const ctext = (cj.choices && cj.choices[0] && cj.choices[0].message && cj.choices[0].message.content) || (cj.result && cj.result.response) || (typeof cj.result === "string" ? cj.result : "") || "";
         const parsed = (ctext && typeof ctext === "object") ? ctext : JSON.parse(String(ctext).replace(/```json|```/g, "").trim().replace(/^```|```$/g, ""));
-        if (!parsed.error) { const cap = Number(parsed.capacity_ml) || 0; const fl = Number(parsed.fill) || 0; const computed = cap && fl ? Math.round(cap * fl) : Math.round(parsed.ml || 0); return res.status(200).json({ drink: parsed.drink || "Drink", container: parsed.container || "glass", fill: parsed.fill, capacity_ml: parsed.capacity_ml, ml: computed }); }
+        if (!parsed.error) { const cap = Number(parsed.capacity_ml) || 0; const fl = Number(parsed.fill) || 0; let computed = cap && fl ? Math.round(cap * fl) : Math.round(parsed.ml || 0); const modelMl = Number(parsed.ml); if (modelMl > 0 && (!cap || modelMl <= cap)) computed = Math.round(modelMl); return res.status(200).json({ drink: parsed.drink || "Drink", container: parsed.container || "glass", fill: parsed.fill, capacity_ml: parsed.capacity_ml, ml: computed, ice_present: !!parsed.ice_present }); }
       } else { providerErrors['cloudflare'] = cf.status + ' ' + cf.text.slice(0,200); }
     } catch (e) { providerErrors['cloudflare'] = String(e).slice(0,200); }
   }

@@ -98,6 +98,11 @@
     border:2px solid var(--line); display:block;
   }
   .photo-preview p{ margin-top:8px; color:var(--muted); font-weight:700; font-size:.95rem; }
+  .cam-view{ display:none; margin-top:14px; }
+  .cam-view.show{ display:block; }
+  .cam-view video, .cam-view img{ width:100%; border-radius:14px; background:#000; }
+  .cam-btns{ display:flex; flex-wrap:wrap; gap:10px; margin-top:10px; }
+  .cam-btns .btn{ flex:1; min-width:140px; }
   .spin{
     display:inline-block; width:18px; height:18px; vertical-align:-3px; margin-right:8px;
     border:3px solid rgba(255,255,255,.25); border-top-color:var(--yellow);
@@ -263,6 +268,17 @@
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2.5" stroke="currentColor" stroke-width="2"/><circle cx="9" cy="10" r="1.8" fill="currentColor"/><path d="m5 19 5-5 3 3 3-3 3 3" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
         Choose a photo
       </button>
+    </div>
+    <div class="cam-view" id="camView">
+      <video id="camVideo" playsinline muted autoplay></video>
+      <img id="camShot" alt="The photo you just took" hidden />
+      <div class="cam-btns">
+        <button class="btn btn-yellow" id="camCaptureBtn" type="button">📸 Take photo</button>
+        <button class="btn btn-teal" id="camRetakeBtn" type="button" hidden>↻ Retake</button>
+        <button class="btn btn-yellow" id="camUseBtn" type="button" hidden>✓ Use this photo</button>
+        <button class="btn" id="camCancelBtn" type="button">Cancel</button>
+      </div>
+      <p class="small" id="camNote">Live camera — point it at your drink, rear camera first.</p>
     </div>
     <input id="takePhotoInput" type="file" accept="image/*" hidden />
     <input id="choosePhotoInput" type="file" accept="image/*" hidden />
@@ -868,8 +884,78 @@
     img.src = url;
   }
 
+  /* In-app camera: live rear-facing preview via getUserMedia, NOT the
+     gallery/file picker. Gallery stays available only as "Choose a photo"
+     and as a fallback if the camera is unavailable or denied. */
+  var camView = el("camView"), camVideo = el("camVideo"), camShot = el("camShot"),
+      camCaptureBtn = el("camCaptureBtn"), camRetakeBtn = el("camRetakeBtn"),
+      camUseBtn = el("camUseBtn"), camCancelBtn = el("camCancelBtn"), camNote = el("camNote"),
+      camStream = null, camBlob = null, camShotUrl = null;
+  function stopCamera(){
+    if (camStream) { camStream.getTracks().forEach(function(tr){ try{ tr.stop(); }catch(e){} }); camStream = null; }
+    try { camVideo.srcObject = null; } catch(e) {}
+  }
+  function hideCamera(){ stopCamera(); camView.classList.remove("show"); }
+  function showCaptureState(){
+    camVideo.hidden = false; camShot.hidden = true;
+    camCaptureBtn.hidden = false; camRetakeBtn.hidden = true; camUseBtn.hidden = true;
+  }
+  function showShotState(){
+    camVideo.hidden = true; camShot.hidden = false;
+    camCaptureBtn.hidden = true; camRetakeBtn.hidden = false; camUseBtn.hidden = false;
+  }
+  async function openCamera(){
+    photoStatus.className = "photo-status show";
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      photoStatus.innerHTML = "This device or browser can't open a live camera here — please use <strong>Choose a photo</strong> below to pick a photo instead.";
+      return;
+    }
+    try {
+      stopCamera();
+      camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
+      camVideo.srcObject = camStream;
+      try { await camVideo.play(); } catch(e) {}
+      camView.classList.add("show");
+      showCaptureState();
+      camNote.textContent = "Live camera — point it at your drink, rear camera first.";
+      photoStatus.innerHTML = "Camera is open — take your photo below, then confirm it.";
+    } catch (e) {
+      var name = (e && e.name) || "";
+      if (name === "NotAllowedError" || name === "SecurityError") {
+        photoStatus.innerHTML = "Camera permission was denied — allow the camera in your browser settings and try again, or use <strong>Choose a photo</strong> below instead.";
+      } else if (name === "NotFoundError" || name === "OverconstrainedError") {
+        photoStatus.innerHTML = "No camera was found on this device — please use <strong>Choose a photo</strong> below instead.";
+      } else {
+        photoStatus.innerHTML = "The camera could not be opened (" + name + ") — please use <strong>Choose a photo</strong> below instead.";
+      }
+    }
+  }
+  camCaptureBtn.addEventListener("click", function(){
+    if (!camVideo.videoWidth) { camNote.textContent = "Camera is still starting — wait a moment, then tap Take photo again."; return; }
+    var cv = document.createElement("canvas");
+    cv.width = camVideo.videoWidth; cv.height = camVideo.videoHeight;
+    cv.getContext("2d").drawImage(camVideo, 0, 0, cv.width, cv.height);
+    cv.toBlob(function(blob){
+      if (!blob) { camNote.textContent = "That capture did not work — try again."; return; }
+      camBlob = blob;
+      if (camShotUrl) URL.revokeObjectURL(camShotUrl);
+      camShotUrl = URL.createObjectURL(blob);
+      camShot.src = camShotUrl;
+      showShotState();
+      camNote.textContent = "Got it — check the photo, retake if you need to, or use it.";
+    }, "image/jpeg", 0.9);
+  });
+  camRetakeBtn.addEventListener("click", function(){ camBlob = null; showCaptureState(); camNote.textContent = "Live camera — point it at your drink, rear camera first."; });
+  camUseBtn.addEventListener("click", function(){
+    if (!camBlob) return;
+    var file = new File([camBlob], "camera-photo.jpg", { type: "image/jpeg" });
+    hideCamera();
+    handlePhotoFile(file);
+  });
+  camCancelBtn.addEventListener("click", function(){ hideCamera(); photoStatus.innerHTML = "Camera closed — no photo was added."; });
+  window.addEventListener("pagehide", stopCamera);
   var takeInput = el("takePhotoInput"), chooseInput = el("choosePhotoInput");
-  el("takePhotoBtn").addEventListener("click", function(){ takeInput.click(); });
+  el("takePhotoBtn").addEventListener("click", openCamera);
   el("choosePhotoBtn").addEventListener("click", function(){ chooseInput.click(); });
   takeInput.addEventListener("change", function(){ handlePhotoFile(takeInput.files && takeInput.files[0]); takeInput.value = ""; });
   chooseInput.addEventListener("change", function(){ handlePhotoFile(chooseInput.files && chooseInput.files[0]); chooseInput.value = ""; });
