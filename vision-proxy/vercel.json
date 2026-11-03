@@ -1,1 +1,10 @@
-{"functions": {"api/estimate.js": {"maxDuration": 30}}}
+{
+  "functions": {
+    "api/estimate.js": {
+      "maxDuration": 30
+    },
+    "api/food-estimate.js": {
+      "maxDuration": 30
+    }
+  }
+}
