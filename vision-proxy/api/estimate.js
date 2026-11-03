@@ -1,4 +1,4 @@
-// Snap Nutra vision proxy — CF deployment trigger 2026-11-02 — runs on Vercel, free tier.
+// Snap Nutra vision proxy — CF deployment trigger token-2 2026-11-02 — runs on Vercel, free tier.
 // The Gemini API key lives ONLY as a Vercel environment variable
 // (GEMINI_API_KEY). It is never in this repo, never in app.html,
 // and never returned to the browser. The app sends a photo, this
