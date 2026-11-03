@@ -51,7 +51,7 @@ Rules: fill is the fraction of the container that is full (0.25, 0.5, 0.75, 1.0,
       if (cf.status >= 200 && cf.status < 300) {
         const cj = JSON.parse(cf.text);
         const ctext = (cj.choices && cj.choices[0] && cj.choices[0].message && cj.choices[0].message.content) || (cj.result && cj.result.response) || (typeof cj.result === "string" ? cj.result : "") || "";
-        const parsed = JSON.parse(String(ctext).replace(/```json|```/g, "").trim());
+        const parsed = (ctext && typeof ctext === "object") ? ctext : JSON.parse(String(ctext).replace(/```json|```/g, "").trim().replace(/^```|```$/g, ""));
         if (!parsed.error) { const cap = Number(parsed.capacity_ml) || 0; const fl = Number(parsed.fill) || 0; const computed = cap && fl ? Math.round(cap * fl) : Math.round(parsed.ml || 0); return res.status(200).json({ drink: parsed.drink || "Drink", container: parsed.container || "glass", fill: parsed.fill, capacity_ml: parsed.capacity_ml, ml: computed }); }
       } else { providerErrors['cloudflare'] = cf.status + ' ' + cf.text.slice(0,200); }
     } catch (e) { providerErrors['cloudflare'] = String(e).slice(0,200); }
