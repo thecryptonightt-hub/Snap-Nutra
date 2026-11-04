@@ -101,6 +101,10 @@
   .cam-view{ display:none; margin-top:14px; }
   .cam-view.show{ display:block; }
   .cam-view video, .cam-view img{ width:100%; border-radius:14px; background:#000; }
+  /* Top-of-page camera: never taller than the viewport, so it cannot
+     be clipped at the bottom of the screen on a phone. */
+  .cam-view.cam-top{ margin-top:0; margin-bottom:14px; }
+  .cam-view.cam-top video, .cam-view.cam-top img{ max-height:68vh; object-fit:cover; }
   .cam-btns{ display:flex; flex-wrap:wrap; gap:10px; margin-top:10px; }
   .cam-btns .btn{ flex:1; min-width:140px; }
   .spin{
@@ -248,6 +252,21 @@
 <body>
 <div class="wrap">
 
+  <!-- Camera preview at the very top of the page (not inside the photo
+       card below): on a real phone it was appearing low down and getting
+       cut off at the bottom. It is hidden until Take a photo is tapped. -->
+  <div class="cam-view cam-top" id="camView">
+    <video id="camVideo" playsinline muted autoplay></video>
+    <img id="camShot" alt="The photo you just took" hidden />
+    <div class="cam-btns">
+      <button class="btn btn-yellow" id="camCaptureBtn" type="button">📸 Take photo</button>
+      <button class="btn btn-teal" id="camRetakeBtn" type="button" hidden>↻ Retake</button>
+      <button class="btn btn-yellow" id="camUseBtn" type="button" hidden>✓ Use this photo</button>
+      <button class="btn" id="camCancelBtn" type="button">Cancel</button>
+    </div>
+    <p class="small" id="camNote">Live camera — point it at your drink, rear camera first.</p>
+  </div>
+
   <div class="appname">
     <span class="dot" aria-hidden="true">
       <svg viewBox="0 0 24 24" fill="none"><path d="M12 3c3.5 4.2 6 7.6 6 10.6A6 6 0 0 1 6 13.6C6 10.6 8.5 7.2 12 3Z" fill="#241c00"/><path d="M9.5 14.5a2.6 2.6 0 0 0 2 3" stroke="#ffd21f" stroke-width="1.8" stroke-linecap="round"/></svg>
@@ -269,22 +288,12 @@
         Choose a photo
       </button>
     </div>
-    <div class="cam-view" id="camView">
-      <video id="camVideo" playsinline muted autoplay></video>
-      <img id="camShot" alt="The photo you just took" hidden />
-      <div class="cam-btns">
-        <button class="btn btn-yellow" id="camCaptureBtn" type="button">📸 Take photo</button>
-        <button class="btn btn-teal" id="camRetakeBtn" type="button" hidden>↻ Retake</button>
-        <button class="btn btn-yellow" id="camUseBtn" type="button" hidden>✓ Use this photo</button>
-        <button class="btn" id="camCancelBtn" type="button">Cancel</button>
-      </div>
-      <p class="small" id="camNote">Live camera — point it at your drink, rear camera first.</p>
-    </div>
     <input id="takePhotoInput" type="file" accept="image/*" hidden />
     <input id="choosePhotoInput" type="file" accept="image/*" hidden />
     <div class="photo-preview" id="photoPreview">
       <img id="photoImg" alt="The drink photo you just added" />
       <p>Your photo — the estimate from it is in Today's list below.</p>
+      <button class="btn" id="photoHideBtn" type="button">Hide this photo</button>
     </div>
     <div class="photo-status" id="photoStatus" role="status" aria-live="polite"></div>
   </section>
@@ -893,9 +902,20 @@
       camStream = null, camBlob = null, camShotUrl = null;
   function stopCamera(){
     if (camStream) { camStream.getTracks().forEach(function(tr){ try{ tr.stop(); }catch(e){} }); camStream = null; }
+    try { camVideo.pause(); } catch(e) {}
     try { camVideo.srcObject = null; } catch(e) {}
   }
-  function hideCamera(){ stopCamera(); camView.classList.remove("show"); }
+  function hideCamera(){
+    /* Fully close the camera: stop every track, drop the stream, hide
+       the view, and reset to the capture state so a stale shot cannot
+       stay on screen and the next open gets a fresh camera. */
+    stopCamera();
+    camView.classList.remove("show");
+    camBlob = null;
+    if (camShotUrl) { try { URL.revokeObjectURL(camShotUrl); } catch(e) {} camShotUrl = null; }
+    try { camShot.removeAttribute("src"); } catch(e) {}
+    showCaptureState();
+  }
   function showCaptureState(){
     camVideo.hidden = false; camShot.hidden = true;
     camCaptureBtn.hidden = false; camRetakeBtn.hidden = true; camUseBtn.hidden = true;
@@ -917,6 +937,9 @@
       try { await camVideo.play(); } catch(e) {}
       camView.classList.add("show");
       showCaptureState();
+      /* The preview now lives at the top of the page: bring it into
+         view at once so it cannot sit cut off below the fold. */
+      try { camView.scrollIntoView({ behavior:"smooth", block:"start" }); } catch(e) {}
       camNote.textContent = "Live camera — point it at your drink, rear camera first.";
       photoStatus.innerHTML = "Camera is open — take your photo below, then confirm it.";
     } catch (e) {
@@ -949,11 +972,29 @@
   camUseBtn.addEventListener("click", function(){
     if (!camBlob) return;
     var file = new File([camBlob], "camera-photo.jpg", { type: "image/jpeg" });
+    /* Close the camera first, and close it again after the photo is
+       handed off: the added photo's own preview (photoPreview, below)
+       is a still image, not the live camera, and it now has its own
+       Hide button. The live camera must never stay on after Use. */
     hideCamera();
     handlePhotoFile(file);
+    hideCamera();
   });
   camCancelBtn.addEventListener("click", function(){ hideCamera(); photoStatus.innerHTML = "Camera closed — no photo was added."; });
-  window.addEventListener("pagehide", stopCamera);
+  /* Retake returns to the live preview; Cancel from either the live or
+     the shot state closes everything via hideCamera above, so there is
+     no retake-cancel path that leaves a stream running. */
+  window.addEventListener("pagehide", hideCamera);
+  /* The added photo's still preview is not the camera, but the user
+     reported no way to clear it short of restarting the app, so it
+     gets its own dismiss button. This never removes the added entry
+     from Today's list — it only hides the picture. */
+  var photoHideBtn = el("photoHideBtn");
+  if (photoHideBtn) photoHideBtn.addEventListener("click", function(){
+    hideCamera();
+    photoPreview.classList.remove("show");
+    try { photoImg.removeAttribute("src"); } catch(e) {}
+  });
   var takeInput = el("takePhotoInput"), chooseInput = el("choosePhotoInput");
   el("takePhotoBtn").addEventListener("click", openCamera);
   el("choosePhotoBtn").addEventListener("click", function(){ chooseInput.click(); });
