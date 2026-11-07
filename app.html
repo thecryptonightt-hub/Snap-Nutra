@@ -235,9 +235,15 @@
 
   /* ---------- History ---------- */
   .hist-item{
-    display:flex; justify-content:space-between; gap:12px;
+    display:flex; justify-content:space-between; align-items:center; gap:12px;
     padding:12px 2px; border-bottom:1.5px solid rgba(29,90,82,.6); font-weight:800; font-size:1rem;
   }
+  .hist-addback{
+    border:1.5px solid var(--line); background:#05201d; color:var(--muted);
+    border-radius:999px; padding:6px 12px; font-weight:900; font-size:.85rem;
+    white-space:nowrap; flex:0 0 auto;
+  }
+  .hist-addback:active{ border-color:var(--yellow); color:var(--ink); }
   .hist-item:last-child{ border-bottom:none; }
   .hist-item .h-ml{ color:var(--yellow); font-weight:900; white-space:nowrap; }
   .hist-empty{ color:var(--muted); font-weight:700; margin-top:10px; }
@@ -376,6 +382,7 @@
     </div>
     <div id="todayList"></div>
     <button class="newday-btn" id="newDayBtn" type="button">↻ Refresh after dialysis — clears the total</button>
+    <p class="fineprint" style="text-align:center; margin-top:10px;">Your total only clears when you tap this — never on its own. That is your choice.</p>
   </section>
 
   <!-- 6. PAST DAYS -->
@@ -626,7 +633,7 @@
       historyList.appendChild(p);
       return;
     }
-    state.history.slice(0, 14).forEach(function(day){
+    state.history.slice(0, 14).forEach(function(day, idx){
       var total = 0;
       (day.items||[]).forEach(function(i){ total += Number(i.ml)||0; });
       var row = document.createElement("div");
@@ -635,7 +642,23 @@
       if(day.endDay && day.endDay !== day.day){ label = prettyDate(day.day) + " – " + prettyDate(day.endDay); }
       var a = document.createElement("span"); a.textContent = label + " · " + (day.items||[]).length + " drinks";
       var b = document.createElement("span"); b.className = "h-ml"; b.textContent = total + " mL";
-      row.appendChild(a); row.appendChild(b);
+      var back = document.createElement("button");
+      back.type = "button";
+      back.className = "hist-addback";
+      back.textContent = "↩ Add back";
+      back.setAttribute("aria-label", "Add this total back into my current total");
+      back.addEventListener("click", function(){
+        var items = day.items || [];
+        var wasEmpty = state.items.length === 0;
+        items.forEach(function(it){ state.items.push(it); });
+        if(items.length){
+          if(wasEmpty){ state.day = day.day; }
+          else if(day.day < state.day){ state.day = day.day; }
+        }
+        state.history.splice(idx, 1);
+        save(); render();
+      });
+      row.appendChild(a); row.appendChild(b); row.appendChild(back);
       historyList.appendChild(row);
     });
   }
@@ -814,7 +837,15 @@
       }
     }
 
-    /* Drink name: filename hints first, then colour */
+    /* Drink name: filename hints ONLY.
+       FIX 2026-11-07: the old code guessed the drink from the photo's
+       average colour when no filename hint matched — a white/silver
+       Celsius can read as "Water" that way (blue tones win), and the
+       wrong drink was added silently: "Water — glass, 263 mL" for a
+       Celsius can. The fallback must never invent a drink: if no
+       filename hint identifies it, return null so the app says it
+       could not read the photo (add by hand, or retake) instead of
+       adding a wrong amount. */
     var drink = "Drink";
     if(/arizona|green tea/.test(name)) drink = "Green tea with ginseng and honey";
     else if(/tea/.test(name)) drink = "Tea";
@@ -825,25 +856,7 @@
     else if(/water/.test(name)) drink = "Water";
     else if(/soda|cola|coke|pepsi/.test(name)) drink = "Soda";
     else if(/ice ?cream/.test(name)) drink = "Ice cream";
-    else{
-      /* Colour of the liquid itself: average the rows below the fill
-         surface, not the middle of the whole photo (which can be ice,
-         glass, table or app background). Amber/brown = tea. */
-      var lr=0, lg=0, lb=0, ln=0;
-      var surfY = Math.floor(H * (1 - (typeof fill !== "undefined" ? fill : 0.5)));
-      for(var y5=Math.min(H-2, surfY+2); y5<H*0.92; y5+=2){
-        for(var x5=Math.floor(W*0.3); x5<W*0.7; x5+=2){
-          var p5 = px(x5, y5); lr+=p5[0]; lg+=p5[1]; lb+=p5[2]; ln++;
-        }
-      }
-      var r = ln ? lr/ln : avg[0], g = ln ? lg/ln : avg[1], b = ln ? lb/ln : avg[2];
-      if(r > 100 && g > 50 && g < 160 && b < 90 && r > b + 30) drink = "Tea";
-      else if(g > r && g > b) drink = "Tea / juice";
-      else if(r > 110 && g > 70 && b < 80) drink = "Coffee / tea";
-      else if(r > 185 && g > 185 && b > 175) drink = "Milk";
-      else if(b >= r && b >= g) drink = "Water";
-      else drink = "Drink";
-    }
+    else return null;
 
     var ml = Math.round(fullMl * fill);
     ml = Math.max(30, Math.min(1200, ml));
