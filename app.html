@@ -279,7 +279,7 @@
   <!-- 1. ADD WITH A PHOTO -->
   <section class="card photo-card" aria-labelledby="photoH">
     <h2 id="photoH">📸 Add with a photo</h2>
-    <p class="sub">Photograph your cup, glass, bottle, or bowl. The app estimates how much fluid is in it and adds it to today straight away — your fluid total, combined weight and how much you have left all update on their own, with no extra taps.</p>
+    <p class="sub">Photograph your cup, glass, bottle, or bowl. The app estimates how much fluid is in it and adds it to your total straight away — your fluid total, combined weight and how much you have left all update on their own, with no extra taps.</p>
     <div class="photo-btns">
       <button class="btn btn-yellow" id="takePhotoBtn" type="button">
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 8h3l2-2.5h6L17 8h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="13.5" r="3.6" stroke="currentColor" stroke-width="2"/></svg>
@@ -306,13 +306,13 @@
     <div class="dmy" id="dmyEl"></div>
   </div>
   <section class="card" aria-labelledby="goingH">
-    <span class="today-tag">TODAY</span>
+    <span class="today-tag">SO FAR</span>
     <h2 id="goingH" style="margin-top:10px;">Where your weight is going</h2>
     <div class="combined-num"><span id="combinedEl">—</span> <small>kg combined weight</small></div>
-    <p class="sub">That is your <strong style="color:var(--ink)">dry weight plus the fluid you have had today</strong>.</p>
+    <p class="sub">That is your <strong style="color:var(--ink)">dry weight plus the fluid you have had so far</strong>.</p>
     <p class="sub" id="aboveEl">Add your dry weight below to see this number.</p>
     <div class="mini-stats">
-      <div class="mini"><div class="k">Drank today</div><div class="v" id="drankEl">0 mL</div></div>
+      <div class="mini"><div class="k" id="drankLabel">Drank today</div><div class="v" id="drankEl">0 mL</div></div>
       <div class="mini"><div class="k">Left to drink</div><div class="v" id="leftMiniEl">—</div></div>
     </div>
     <p class="fineprint">Planning estimate only — this is not your actual body weight.</p>
@@ -345,7 +345,7 @@
   </div>
 
   <section class="card gauge-card" aria-labelledby="gaugeH">
-    <h2 id="gaugeH" style="font-size:1.2rem;">How full is today?</h2>
+    <h2 id="gaugeH" style="font-size:1.2rem;">How full is this period?</h2>
     <div class="gauge-top">
       <span class="gauge-pct" id="pctEl">—</span>
       <span class="gauge-left" id="leftEl"></span>
@@ -371,11 +371,11 @@
   <!-- 5. TODAY'S LIST -->
   <section class="card" aria-labelledby="listH">
     <div class="list-head">
-      <h2 id="listH">Today's list</h2>
+      <h2 id="listH">Drinks so far</h2>
       <span class="list-total" id="todayTotalEl">0 mL</span>
     </div>
     <div id="todayList"></div>
-    <button class="newday-btn" id="newDayBtn" type="button">Start a new day (moves today's list into Past days)</button>
+    <button class="newday-btn" id="newDayBtn" type="button">↻ Refresh after dialysis — clears the total</button>
   </section>
 
   <!-- 6. PAST DAYS -->
@@ -384,7 +384,7 @@
     <div id="historyList"></div>
   </section>
 
-  <p class="foot">Everything is saved on this device, in this app.<br/>Estimates from photos can be fixed any time — tap an item in Today's list.</p>
+  <p class="foot">Everything is saved on this device, in this app.<br/>Estimates from photos can be fixed any time — tap an item in Drinks so far.</p>
 </div>
 
 <script>
@@ -429,12 +429,15 @@
           state.dryKg = (typeof s.dryKg === "number") ? s.dryKg : null;
           state.limitKg = (typeof s.limitKg === "number") ? s.limitKg : null;
           state.history = Array.isArray(s.history) ? s.history : [];
-          if(s.day === todayKey() && Array.isArray(s.items)){
-            state.day = s.day; state.items = s.items;
-          } else if(Array.isArray(s.items) && s.items.length){
-            state.history.unshift({ day: s.day || todayKey(), items: s.items });
-            state.day = todayKey(); state.items = [];
-          }
+          /* The total keeps adding across days until the user clears it
+             after dialysis — there is no automatic reset at midnight.
+             Items from earlier days stay in the current list; only the
+             "Refresh after dialysis" button moves them into Past days. */
+          if(Array.isArray(s.items)){ state.items = s.items; }
+          /* state.day is the day this total started adding up. Keep it
+             so Past days can show the range; start a new one only when
+             the list is empty. */
+          state.day = (state.items.length && typeof s.day === "string" && s.day) ? s.day : todayKey();
         }
       }
     }catch(e){ /* storage unavailable: keep in-memory state */ }
@@ -455,7 +458,7 @@
   function el(id){ return document.getElementById(id); }
   var dowEl=el("dowEl"), dmyEl=el("dmyEl"),
       combinedEl=el("combinedEl"), aboveEl=el("aboveEl"),
-      drankEl=el("drankEl"), leftMiniEl=el("leftMiniEl"),
+      drankEl=el("drankEl"), drankLabel=el("drankLabel"), leftMiniEl=el("leftMiniEl"),
       dryInput=el("dryInput"), limitInput=el("limitInput"),
       dryNow=el("dryNow"), limitNow=el("limitNow"),
       drySaved=el("drySaved"), limitSaved=el("limitSaved"), limitErr=el("limitErr"),
@@ -481,15 +484,17 @@
       var combined = dry + drank/1000;
       combinedEl.textContent = fmtKg(combined);
       var above = drank/1000;
+      var sinceTxt = (state.day === todayKey()) ? "today's fluid" : "fluid since " + prettyDate(state.day).split(", ").slice(1).join(", ");
       aboveEl.innerHTML = drank === 0
-        ? "Nothing drunk yet today — you are right at your dry weight."
-        : "You are <strong style='color:var(--ink)'>" + fmtKg(above) + " kg above your dry weight</strong> from today's fluid.";
+        ? "Nothing drunk yet — you are right at your dry weight."
+        : "You are <strong style='color:var(--ink)'>" + fmtKg(above) + " kg above your dry weight</strong> from " + sinceTxt + ".";
     } else {
       combinedEl.textContent = "—";
       aboveEl.textContent = "Add your dry weight below to see this number.";
     }
     drankEl.textContent = drank + " mL";
-    todayTotalEl.textContent = drank + " mL today";
+    todayTotalEl.textContent = drank + " mL so far";
+    drankLabel.textContent = (state.day === todayKey()) ? "Drank today" : "Drank since " + prettyDate(state.day).split(", ").slice(1).join(", ");
 
     /* Weight cards */
     dryNow.textContent = (typeof dry === "number") ? ("Saved: " + fmtKg(dry) + " kg") : "Not set yet.";
@@ -511,13 +516,13 @@
       if(pct >= 100 && drank > allowedMl){
         warnEl.textContent = "⚠️ Over your limit — you have passed the line by " + Math.abs(left) + " mL.";
       } else if(pct >= 100){
-        warnEl.textContent = "⚠️ You have reached your limit for today.";
+        warnEl.textContent = "⚠️ You have reached your limit.";
       } else if(pct >= 90){
-        warnEl.textContent = "Very close — only " + left + " mL left today.";
+        warnEl.textContent = "Very close — only " + left + " mL left.";
       } else if(pct >= 70){
-        warnEl.textContent = "Getting close — " + left + " mL left today.";
+        warnEl.textContent = "Getting close — " + left + " mL left.";
       } else {
-        warnEl.textContent = "Plenty left — " + left + " mL still to go today. 👍";
+        warnEl.textContent = "Plenty left — " + left + " mL still to go. 👍";
       }
       allowedEl.innerHTML = "Allowed gain: <strong>" + fmtKg(limit - dry) + " kg = " + allowedMl + " mL</strong> between your dry weight and your limit.";
     } else if(typeof dry === "number" && typeof limit === "number"){
@@ -547,7 +552,7 @@
     if(!state.items.length){
       var d = document.createElement("div");
       d.className = "empty";
-      d.innerHTML = "Nothing added yet today.<br/>Take a photo above, or tap <strong style='color:var(--ink)'>Add by hand</strong>.";
+      d.innerHTML = "Nothing added yet.<br/>Take a photo above, or tap <strong style='color:var(--ink)'>Add by hand</strong>.";
       todayList.appendChild(d);
       return;
     }
@@ -617,7 +622,7 @@
     if(!state.history.length){
       var p = document.createElement("p");
       p.className = "hist-empty";
-      p.textContent = "No past days yet. Yesterday's list will appear here on its own.";
+      p.textContent = "No past totals yet. When you clear after dialysis, that total will appear here.";
       historyList.appendChild(p);
       return;
     }
@@ -626,7 +631,9 @@
       (day.items||[]).forEach(function(i){ total += Number(i.ml)||0; });
       var row = document.createElement("div");
       row.className = "hist-item";
-      var a = document.createElement("span"); a.textContent = prettyDate(day.day) + " · " + (day.items||[]).length + " drinks";
+      var label = prettyDate(day.day);
+      if(day.endDay && day.endDay !== day.day){ label = prettyDate(day.day) + " – " + prettyDate(day.endDay); }
+      var a = document.createElement("span"); a.textContent = label + " · " + (day.items||[]).length + " drinks";
       var b = document.createElement("span"); b.className = "h-ml"; b.textContent = total + " mL";
       row.appendChild(a); row.appendChild(b);
       historyList.appendChild(row);
@@ -706,7 +713,7 @@
   /* ---------- New day ---------- */
   el("newDayBtn").addEventListener("click", function(){
     if(state.items.length){
-      state.history.unshift({ day: state.day, items: state.items });
+      state.history.unshift({ day: state.day, endDay: todayKey(), items: state.items });
     }
     state.day = todayKey();
     state.items = [];
@@ -874,7 +881,7 @@
           var fw = j.fill >= 0.97 ? "full" : j.fill >= 0.7 ? "about three-quarters full" : j.fill >= 0.42 ? "about half full" : j.fill >= 0.2 ? "about a quarter full" : "nearly empty";
           var label = (j.drink || "Drink") + " — " + (j.container || "glass") + ", " + fw;
           addItem(label, Math.round(j.ml), "photo");
-          photoStatus.innerHTML = "<span class='ok'>✓ Added to today:</span> " + label + " — <strong>" + Math.round(j.ml) + " mL (" + flOz(Math.round(j.ml)) + " fl oz)</strong>.<br/>Your total, combined weight and line have updated. If the amount looks off, tap it in Today's list to fix it.";
+          photoStatus.innerHTML = "<span class='ok'>✓ Added to your total:</span> " + label + " — <strong>" + Math.round(j.ml) + " mL (" + flOz(Math.round(j.ml)) + " fl oz)</strong>.<br/>Your total, combined weight and line have updated. If the amount looks off, tap it in Drinks so far to fix it.";
           document.getElementById("goingH").scrollIntoView({ behavior:"smooth", block:"start" });
           return;
         }
@@ -886,7 +893,7 @@
       }
       var label = est.drink + " — " + est.container + ", " + est.fillWord;
       addItem(label, est.ml, "photo");
-      photoStatus.innerHTML = "<span class='ok'>✓ Added to today:</span> " + label + " — <strong>" + est.ml + " mL (" + flOz(est.ml) + " fl oz)</strong>.<br/>Your total, combined weight and line have updated. If the amount looks off, tap it in Today's list to fix it.";
+      photoStatus.innerHTML = "<span class='ok'>✓ Added to your total:</span> " + label + " — <strong>" + est.ml + " mL (" + flOz(est.ml) + " fl oz)</strong>.<br/>Your total, combined weight and line have updated. If the amount looks off, tap it in Drinks so far to fix it.";
       document.getElementById("goingH").scrollIntoView({ behavior:"smooth", block:"start" });
     };
     img.onerror = function(){
