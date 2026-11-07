@@ -9,6 +9,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800;900&display=swap" rel="stylesheet" />
+<!-- On-device label reading (Tesseract.js). Runs entirely on this phone:
+     no server, no credits, no daily limit. If it fails to load (offline),
+     the app skips it and goes straight to the drink picker. -->
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <style>
   :root{
     --bg:#041816;
@@ -91,6 +95,27 @@
   }
   .photo-status.show{ display:block; }
   .photo-status .ok{ color:var(--green); }
+  /* ---------- On-device drink picker (shown when the label could not be
+     read). Big candy buttons, one tap, no server call, no limit. ---------- */
+  .pick-wrap{ display:none; margin-top:14px; }
+  .pick-wrap.show{ display:block; }
+  .pick-wrap h3{ font-size:1.15rem; font-weight:900; margin:0 0 4px; }
+  .pick-wrap .pick-sub{ color:var(--muted); font-size:1rem; font-weight:700; line-height:1.4; margin-bottom:12px; }
+  .pick-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .pick-btn{
+    border:2px solid var(--line); border-radius:16px; min-height:58px;
+    padding:12px 10px; font-size:1.08rem; font-weight:900; color:var(--ink);
+    background:linear-gradient(180deg, var(--card2), var(--card));
+    display:flex; align-items:center; justify-content:center; text-align:center;
+  }
+  .pick-btn:active{ transform:scale(.97); }
+  .pick-btn.brand{ border-color:var(--yellow); background:linear-gradient(180deg,#3a3205,#241c00); }
+  .pick-note{ margin-top:12px; font-size:.95rem; font-weight:700; color:var(--muted); line-height:1.4; }
+  .server-btn{
+    margin-top:10px; border:1.5px dashed #2a7a6d; border-radius:14px;
+    background:transparent; color:var(--muted); font-size:.98rem; font-weight:800;
+    min-height:48px; padding:10px 14px; width:100%;
+  }
   .photo-preview{ display:none; margin-top:14px; }
   .photo-preview.show{ display:block; }
   .photo-preview img{
@@ -285,7 +310,7 @@
   <!-- 1. ADD WITH A PHOTO -->
   <section class="card photo-card" aria-labelledby="photoH">
     <h2 id="photoH">📸 Add with a photo</h2>
-    <p class="sub">Photograph your cup, glass, bottle, or bowl. The app estimates how much fluid is in it and adds it to your total straight away — your fluid total, combined weight and how much you have left all update on their own, with no extra taps.</p>
+    <p class="sub">Photograph your cup, glass, bottle, or bowl. The app's AI reads the photo and adds it to your total straight away — what it is, and how much. If the AI can't read it, the app reads the label on this phone instead, and if that can't read it either, you tap the drink. Your fluid total, combined weight and how much you have left all update on their own.</p>
     <div class="photo-btns">
       <button class="btn btn-yellow" id="takePhotoBtn" type="button">
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 8h3l2-2.5h6L17 8h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="13.5" r="3.6" stroke="currentColor" stroke-width="2"/></svg>
@@ -304,6 +329,13 @@
       <button class="btn" id="photoHideBtn" type="button">Hide this photo</button>
     </div>
     <div class="photo-status" id="photoStatus" role="status" aria-live="polite"></div>
+    <div class="pick-wrap" id="pickWrap" aria-live="polite">
+      <h3 id="pickTitle">Which drink is this?</h3>
+      <p class="pick-sub" id="pickSub">Tap it — it is added straight away, no server needed.</p>
+      <div class="pick-grid" id="pickGrid"></div>
+      <p class="pick-note" id="pickNote"></p>
+      <button class="server-btn" id="serverReadBtn" type="button" hidden>↻ Retry the AI read (server)</button>
+    </div>
   </section>
 
   <!-- 2. DATE + WHERE YOUR WEIGHT IS GOING -->
@@ -745,6 +777,74 @@
   });
 
   /* =========================================================
+     ON-DEVICE LABEL READING — the FALLBACK, free and unlimited.
+     Only used when the AI (server) could not read the photo.
+     Tesseract.js (on this phone) reads the words on the label,
+     then a LOCAL drink list matches the brand to its standard
+     size. No server call, no credits, no daily limit, no card.
+     A sealed can/bottle is always full (fill 1.0) — the app
+     never invents a drink: if no brand is read, it asks you
+     to tap the drink instead of guessing.
+     ========================================================= */
+  var BRAND_DRINKS = [
+    { keys:["CELSIUS","CELSIU","ELSIUS"], name:"Celsius", container:"tall can / bottle", ml:355, fill:1 },
+    { keys:["MONSTER","MONSTE"], name:"Monster", container:"tall can / bottle", ml:473, fill:1 },
+    { keys:["REDBULL","REDBUL"], name:"Red Bull", container:"tall can / bottle", ml:250, fill:1 },
+    { keys:["GATORADE","GATORAD","GATOR"], name:"Gatorade", container:"tall can / bottle", ml:591, fill:1 },
+    { keys:["COCACOLA","COCA","COKE"], name:"Coca-Cola", container:"tall can / bottle", ml:355, fill:1 },
+    { keys:["PEPSI","PEPS"], name:"Pepsi", container:"tall can / bottle", ml:355, fill:1 },
+    { keys:["ARIZONA","ARIZON"], name:"Arizona", container:"tall can / bottle", ml:651, fill:1 },
+    { keys:["STARBUCKS","STARBUCK"], name:"Starbucks", container:"tall can / bottle", ml:281, fill:1 }
+  ];
+  /* Generic drinks for the one-tap picker (same sizes as Add by hand). */
+  var PICK_DRINKS = [
+    { name:"Water", ml:250, container:"glass" },
+    { name:"Celsius", ml:355, container:"tall can / bottle" },
+    { name:"Monster", ml:473, container:"tall can / bottle" },
+    { name:"Red Bull", ml:250, container:"tall can / bottle" },
+    { name:"Gatorade", ml:591, container:"tall can / bottle" },
+    { name:"Coca-Cola", ml:355, container:"tall can / bottle" },
+    { name:"Pepsi", ml:355, container:"tall can / bottle" },
+    { name:"Arizona", ml:651, container:"tall can / bottle" },
+    { name:"Coffee", ml:300, container:"cup / mug" },
+    { name:"Tea", ml:300, container:"cup / mug" },
+    { name:"Juice", ml:250, container:"glass" },
+    { name:"Soda", ml:355, container:"tall can / bottle" }
+  ];
+  function matchBrand(ocrText){
+    var t = String(ocrText || "").toUpperCase().replace(/[^A-Z]/g, "");
+    if(!t) return null;
+    for(var i=0;i<BRAND_DRINKS.length;i++){
+      var b = BRAND_DRINKS[i];
+      for(var k=0;k<b.keys.length;k++){
+        if(t.indexOf(b.keys[k]) !== -1) return b;
+      }
+    }
+    return null;
+  }
+  /* Run Tesseract on the (already resized) photo and return the matched
+     brand, or null. Times out after 30s so a slow read never hangs the
+     app — a timeout is treated the same as "could not read". */
+  function readLabelOnDevice(dataUrl){
+    if(typeof Tesseract === "undefined") return Promise.resolve(null);
+    return new Promise(function(resolve){
+      var done = false;
+      var timer = setTimeout(function(){ if(!done){ done = true; resolve(null); } }, 30000);
+      try{
+        Tesseract.recognize(dataUrl, "eng", { tessedit_pageseg_mode:"6" }).then(function(res){
+          if(done) return; done = true; clearTimeout(timer);
+          var text = (res && res.data && res.data.text) || "";
+          resolve(matchBrand(text));
+        }).catch(function(){
+          if(done) return; done = true; clearTimeout(timer); resolve(null);
+        });
+      }catch(e){
+        if(done) return; done = true; clearTimeout(timer); resolve(null);
+      }
+    });
+  }
+
+  /* =========================================================
      PHOTO ESTIMATION — runs on this device, no key, no setup.
      Looks at the photo itself: the container shape (tall can /
      bottle, glass, mug, bowl), the visible fill line (full,
@@ -843,10 +943,10 @@
        Celsius can read as "Water" that way (blue tones win), and the
        wrong drink was added silently: "Water — glass, 263 mL" for a
        Celsius can. The fallback must never invent a drink: if no
-       filename hint identifies it, return null so the app says it
-       could not read the photo (add by hand, or retake) instead of
-       adding a wrong amount. */
-    var drink = "Drink";
+       filename hint identifies it, drink is null (the fill/container
+       are still returned, so the drink picker can use them — the user
+       taps the drink name, nothing is guessed). */
+    var drink = null;
     if(/arizona|green tea/.test(name)) drink = "Green tea with ginseng and honey";
     else if(/tea/.test(name)) drink = "Tea";
     else if(/coffee/.test(name)) drink = "Coffee";
@@ -856,16 +956,110 @@
     else if(/water/.test(name)) drink = "Water";
     else if(/soda|cola|coke|pepsi/.test(name)) drink = "Soda";
     else if(/ice ?cream/.test(name)) drink = "Ice cream";
-    else return null;
 
     var ml = Math.round(fullMl * fill);
     ml = Math.max(30, Math.min(1200, ml));
-    var fillWord = fill >= 0.97 ? "full" : fill >= 0.7 ? "about three-quarters full" : fill >= 0.42 ? "about half full" : fill >= 0.2 ? "about a quarter full" : "nearly empty";
-    return { drink: drink, container: container, ml: ml, fill: fill, fillWord: fillWord };
+    return { drink: drink, container: container, ml: ml, fill: fill, fillWord: fillWordFor(fill) };
   }
+
+  /* The drink picker: shown when the label could not be read on-device.
+     One tap adds the drink — no server, no guess. If the on-device fill
+     reading found a container/fill, the picked drink uses that amount;
+     otherwise it uses the drink's standard size. */
+  var pickWrap = el("pickWrap"), pickGrid = el("pickGrid"), pickNote = el("pickNote"),
+      serverReadBtn = el("serverReadBtn");
+  var pickCtx = null; /* { dataUrl, est } — kept for the server-read button */
+  function hidePicker(){
+    if(pickWrap) pickWrap.classList.remove("show");
+    if(pickGrid) pickGrid.innerHTML = "";
+    pickCtx = null;
+    if(serverReadBtn) serverReadBtn.hidden = true;
+  }
+  function showPicker(dataUrl, est){
+    pickCtx = { dataUrl:dataUrl, est:est || null };
+    if(!pickGrid) return;
+    pickGrid.innerHTML = "";
+    PICK_DRINKS.forEach(function(d){
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "pick-btn" + (d.container === "tall can / bottle" ? " brand" : "");
+      b.textContent = d.name;
+      b.addEventListener("click", function(){
+        var ml, container, fillWord;
+        if(pickCtx && pickCtx.est && pickCtx.est.ml){
+          /* Use the fill/container read from the photo, with the
+             drink name the user picked. */
+          ml = pickCtx.est.ml; container = pickCtx.est.container; fillWord = pickCtx.est.fillWord;
+        } else {
+          ml = d.ml; container = d.container; fillWord = "full";
+        }
+        var label = d.name + " — " + container + ", " + fillWord;
+        addItem(label, ml, "photo");
+        hidePicker();
+        photoStatus.innerHTML = "<span class='ok'>✓ Added to your total:</span> " + label + " — <strong>" + ml + " mL (" + flOz(ml) + " fl oz)</strong>.<br/>Your total, combined weight and line have updated. If the amount looks off, tap it in Drinks so far to fix it.";
+        document.getElementById("goingH").scrollIntoView({ behavior:"smooth", block:"start" });
+      });
+      pickGrid.appendChild(b);
+    });
+    if(pickNote) pickNote.textContent = "Not here? Use Add by hand below, or tap the drink and fix the amount in Drinks so far.";
+    if(serverReadBtn) serverReadBtn.hidden = false;
+    if(pickWrap) pickWrap.classList.add("show");
+  }
+  /* =========================================================
+     AI READ (server) — the PRIMARY photo path. The app's AI
+     (Cloudflare free, Llama vision) looks at the photo and
+     returns the drink, container, fill and amount in mL. It
+     runs AUTOMATICALLY on every photo (see handlePhotoFile).
+     This button is only a manual retry, shown in the picker
+     when the automatic read did not return a clear answer.
+     Times out after 120s so a slow server never hangs the
+     app — a timeout falls back to on-device reading, then
+     the picker. Never invents a drink: a bad/no answer
+     resolves to null.
+     ========================================================= */
+  function fillWordFor(fill){
+    return fill >= 0.97 ? "full" : fill >= 0.7 ? "about three-quarters full" : fill >= 0.42 ? "about half full" : fill >= 0.2 ? "about a quarter full" : "nearly empty";
+  }
+  function tryServerRead(dataUrl){
+    return new Promise(function(resolve){
+      var ctrl = new AbortController();
+      var timer = setTimeout(function(){ ctrl.abort(); }, 120000);
+      fetch("https://snap-nutra-vision-proxy.vercel.app/api/estimate", { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ image: dataUrl }), signal: ctrl.signal })
+        .then(function(resp){ return resp.json().then(function(j){ return { ok: resp.ok, j: j }; }); })
+        .then(function(r){
+          clearTimeout(timer);
+          if(r.ok && r.j && r.j.ml && r.j.capacity_ml && typeof r.j.fill === "number"){
+            var ml = Math.max(30, Math.min(1200, Math.round(r.j.ml)));
+            resolve({ drink: r.j.drink, container: r.j.container, fill: r.j.fill, ml: ml, capacity_ml: r.j.capacity_ml });
+          } else {
+            resolve(null);
+          }
+        })
+        .catch(function(){ clearTimeout(timer); resolve(null); });
+    });
+  }
+  /* Manual retry of the AI read, from the picker. */
+  if(serverReadBtn) serverReadBtn.addEventListener("click", function(){
+    if(!pickCtx || !pickCtx.dataUrl) return;
+    serverReadBtn.hidden = true;
+    photoStatus.innerHTML = "<span class='spin'></span>Retrying the AI read… this can take a minute or so, please keep the app open.";
+    tryServerRead(pickCtx.dataUrl).then(function(ai){
+      if(ai){
+        var label = (ai.drink || "Drink") + " — " + (ai.container || "glass") + ", " + fillWordFor(ai.fill);
+        addItem(label, ai.ml, "photo");
+        hidePicker();
+        photoStatus.innerHTML = "<span class='ok'>✓ Added to your total:</span> " + label + " — <strong>" + ai.ml + " mL (" + flOz(ai.ml) + " fl oz)</strong>.<br/>Your total, combined weight and line have updated. If the amount looks off, tap it in Drinks so far to fix it.";
+        document.getElementById("goingH").scrollIntoView({ behavior:"smooth", block:"start" });
+      } else {
+        photoStatus.innerHTML = "The AI read did not return a clear answer. Please tap your drink above instead — or retry the AI read again.";
+        serverReadBtn.hidden = false;
+      }
+    });
+  });
 
   function handlePhotoFile(file){
     if(!file) return;
+    hidePicker();
     photoStatus.className = "photo-status show";
     photoStatus.innerHTML = "<span class='spin'></span>Looking at your photo…";
     var url = URL.createObjectURL(file);
@@ -873,41 +1067,49 @@
     img.onload = async function(){
       photoImg.src = url;
       photoPreview.classList.add("show");
-      /* Real vision first: resize to max 512px (smaller photos read
-         much faster), send to the Snap Nutra vision backend, and use
-         its drink/container/fill/ml. Only if that fails, fall back
-         to the on-device estimate below — never a silent guess. */
-      try {
-        photoStatus.innerHTML = "<span class='spin'></span>Reading your photo with real vision… this can take a minute or so, please keep the app open.";
-        var maxSide = 512, scale = Math.min(1, maxSide / Math.max(img.naturalWidth || img.width, img.naturalHeight || img.height));
-        var cv2 = document.createElement("canvas");
-        cv2.width = Math.max(1, Math.round((img.naturalWidth || img.width) * scale));
-        cv2.height = Math.max(1, Math.round((img.naturalHeight || img.height) * scale));
-        cv2.getContext("2d").drawImage(img, 0, 0, cv2.width, cv2.height);
-        var dataUrl = cv2.toDataURL("image/jpeg", 0.8);
-        var ctrl = new AbortController();
-        var timer = setTimeout(function(){ ctrl.abort(); }, 180000);
-        var resp = await fetch("https://snap-nutra-vision-proxy.vercel.app/api/estimate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ image: dataUrl }), signal: ctrl.signal });
-        clearTimeout(timer);
-        var j = await resp.json();
-        if (resp.ok && j && j.ml && j.capacity_ml && typeof j.fill === "number") {
-          var fw = j.fill >= 0.97 ? "full" : j.fill >= 0.7 ? "about three-quarters full" : j.fill >= 0.42 ? "about half full" : j.fill >= 0.2 ? "about a quarter full" : "nearly empty";
-          var label = (j.drink || "Drink") + " — " + (j.container || "glass") + ", " + fw;
-          addItem(label, Math.round(j.ml), "photo");
-          photoStatus.innerHTML = "<span class='ok'>✓ Added to your total:</span> " + label + " — <strong>" + Math.round(j.ml) + " mL (" + flOz(Math.round(j.ml)) + " fl oz)</strong>.<br/>Your total, combined weight and line have updated. If the amount looks off, tap it in Drinks so far to fix it.";
-          document.getElementById("goingH").scrollIntoView({ behavior:"smooth", block:"start" });
-          return;
-        }
-      } catch (e) { /* fall through to on-device estimate */ }
-      var est = estimateFromImage(img, file.name);
-      if(!est){
-        photoStatus.innerHTML = "I could not read the fill level clearly from that photo, so I did <strong>not</strong> add a guess. Please use <strong>Add by hand</strong> below, or take the photo again with the drink centred and the liquid surface in view.";
+      /* Resize to max 512px (smaller photos read much faster). */
+      var maxSide = 512, scale = Math.min(1, maxSide / Math.max(img.naturalWidth || img.width, img.naturalHeight || img.height));
+      var cv2 = document.createElement("canvas");
+      cv2.width = Math.max(1, Math.round((img.naturalWidth || img.width) * scale));
+      cv2.height = Math.max(1, Math.round((img.naturalHeight || img.height) * scale));
+      cv2.getContext("2d").drawImage(img, 0, 0, cv2.width, cv2.height);
+      var dataUrl = cv2.toDataURL("image/jpeg", 0.8);
+      /* STEP 1 — AI (server) FIRST: the smart read. The AI looks at
+         the photo and returns the drink, container, fill and amount
+         in mL, and the app adds it straight away. This is the whole
+         point of the app. Times out after 120s — a slow server falls
+         back to the label reader below, never hangs the app. */
+      photoStatus.innerHTML = "<span class='spin'></span>Reading your drink… the AI is looking at your photo.";
+      var ai = null;
+      try { ai = await tryServerRead(dataUrl); } catch(e) { ai = null; }
+      if(ai){
+        var alabel = (ai.drink || "Drink") + " — " + (ai.container || "glass") + ", " + fillWordFor(ai.fill);
+        addItem(alabel, ai.ml, "photo");
+        photoStatus.innerHTML = "<span class='ok'>✓ Added to your total:</span> " + alabel + " — <strong>" + ai.ml + " mL (" + flOz(ai.ml) + " fl oz)</strong>.<br/>Read by the AI from your photo. If the amount looks off, tap it in Drinks so far to fix it.";
+        document.getElementById("goingH").scrollIntoView({ behavior:"smooth", block:"start" });
         return;
       }
-      var label = est.drink + " — " + est.container + ", " + est.fillWord;
-      addItem(label, est.ml, "photo");
-      photoStatus.innerHTML = "<span class='ok'>✓ Added to your total:</span> " + label + " — <strong>" + est.ml + " mL (" + flOz(est.ml) + " fl oz)</strong>.<br/>Your total, combined weight and line have updated. If the amount looks off, tap it in Drinks so far to fix it.";
-      document.getElementById("goingH").scrollIntoView({ behavior:"smooth", block:"start" });
+      /* STEP 2 — the AI could not read it. Fall back to on-device
+         label reading (free, unlimited, no server). If a brand on
+         the label matches the local list, add it straight away:
+         a sealed can/bottle is full. */
+      photoStatus.innerHTML = "<span class='spin'></span>The AI could not read it — trying the label on this phone…";
+      var brand = null;
+      try { brand = await readLabelOnDevice(dataUrl); } catch(e) { brand = null; }
+      if(brand){
+        var blabel = brand.name + " — " + brand.container + ", full";
+        addItem(blabel, brand.ml, "photo");
+        photoStatus.innerHTML = "<span class='ok'>✓ Added to your total:</span> " + blabel + " — <strong>" + brand.ml + " mL (" + flOz(brand.ml) + " fl oz)</strong>.<br/>Read on this phone from the label — no server, no credits. If the amount looks off, tap it in Drinks so far to fix it.";
+        document.getElementById("goingH").scrollIntoView({ behavior:"smooth", block:"start" });
+        return;
+      }
+      /* STEP 3 — no brand read either. Read the fill/container
+         on-device (never the drink name), then ask the user to tap
+         the drink. Nothing is guessed and nothing is added until
+         they tap. The AI read can be retried from the picker. */
+      var est = estimateFromImage(img, file.name);
+      photoStatus.innerHTML = "I could not read this photo, so I did <strong>not</strong> guess. Tap your drink below — it is added straight away. You can also retry the AI read.";
+      showPicker(dataUrl, est);
     };
     img.onerror = function(){
       photoStatus.innerHTML = "That photo could not be opened. Please try again, or use <strong>Add by hand</strong> below.";
